@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Servicio De TV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0d1117;
+    --bg-soft: #131b26;
+    --panel: #17212e;
+    --accent: #3ec6ff;
+    --accent-2: #7c5cff;
+    --text: #e9eef5;
+    --text-dim: #93a1b3;
+    --border: #24303e;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- BARRA SUPERIOR ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .marca{
+    display:flex;
+    align-items:center;
+    gap: 14px;
+  }
+
+  .logo-circulo{
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .logo-circulo img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display:block;
+  }
+
+  .marca-texto{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  nav{
+    display:flex;
+    gap: 28px;
+  }
+
+  nav a{
+    font-family: 'Orbitron', sans-serif;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    transition: color 0.2s ease;
+    padding: 6px 2px;
+    border-bottom: 2px solid transparent;
+  }
+
+  nav a:hover{
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+  }
+
+  /* ---------- BANNER ---------- */
+  .banner{
+    max-width: 1100px;
+    margin: 32px auto 0;
+    padding: 0 24px;
+  }
+
+  .banner img{
+    width: 100%;
+    height: 320px;
+    object-fit: cover;
+    border-radius: 20px;
+    display:block;
+    border: 1px solid var(--border);
+  }
+
+  /* ---------- MAS INFORMACION ---------- */
+  .contenido{
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+
+  .contenido h2{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+  }
+
+  .caja-info{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    min-height: 180px;
+    padding: 32px;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .caja-info .intro{
+    color: var(--text);
+    font-size: 1.05rem;
+    margin-bottom: 28px;
+  }
+
+  .caja-info .precio-destacado{
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    background: rgba(62, 198, 255, 0.08);
+    border: 1px solid rgba(62, 198, 255, 0.25);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 28px;
+  }
+
+  .caja-info .precio-destacado .monto{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--accent);
+  }
+
+  .caja-info .precio-destacado .periodo{
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .bloque-info{
+    margin-bottom: 28px;
+  }
+
+  .bloque-info:last-child{
+    margin-bottom: 0;
+  }
+
+  .bloque-info h3{
+    font-family: 'Orbitron', sans-serif;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-bottom: 12px;
+  }
+
+  .grid-categorias{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 18px;
+  }
+
+  .grid-categorias .categoria strong{
+    color: var(--text);
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+  }
+
+  .grid-categorias .categoria ul{
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .lista-simple{
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .lista-pasos{
+    list-style: none;
+    counter-reset: paso;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .lista-pasos li{
+    counter-increment: paso;
+    display: flex;
+    gap: 10px;
+  }
+
+  .lista-pasos li::before{
+    content: counter(paso);
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .grid-2{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  @media (max-width: 640px){
+    .grid-2{
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ---------- CAJA PEQUEÑA (PIE) ---------- */
+  .caja-chica{
+    margin-top: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 22px;
+    display:flex;
+    align-items:center;
+    gap: 18px;
+  }
+
+  .imagen-chica{
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  }
+
+  .imagen-chica img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display:block;
+  }
+
+  .datos-pie{
+    display:flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .datos-pie .derechos{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+
+  .datos-pie .contacto{
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 640px){
+    header{
+      flex-direction: column;
+      gap: 14px;
+      padding: 16px;
+    }
+    nav{
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .banner img{
+      height: 200px;
+    }
+    .caja-chica{
+      flex-direction: column;
+      text-align: center;
+    }
+  }
+
+  /* ================================================
+     SOPORTE — CHAT PRIVADO CLIENTE / VENDEDOR
+     ================================================ */
+
+  .chat-overlay{
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 9, 14, 0.72);
+    backdrop-filter: blur(3px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .chat-overlay.abierto{
+    display: flex;
+  }
+
+  .chat-ventana{
+    width: 100%;
+    max-width: 420px;
+    height: min(600px, 88vh);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .chat-cabecera{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .chat-cabecera .chat-titulo{
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .chat-cabecera .chat-titulo span:first-child{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .chat-estado{
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+  }
+
+  .chat-estado .punto{
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3ddc84;
+  }
+
+  .chat-estado.pausado .punto{ background: #f0b429; }
+  .chat-estado.cerrado .punto{ background: #ef4444; }
+
+  .chat-cerrar-btn{
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+
+  .chat-cerrar-btn:hover{ color: var(--text); }
+
+  .chat-mensajes{
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .msg{
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    word-wrap: break-word;
+  }
+
+  .msg a{ color: inherit; text-decoration: underline; }
+
+  .msg.sistema{
+    align-self: center;
+    background: rgba(124, 92, 255, 0.12);
+    border: 1px solid rgba(124, 92, 255, 0.3);
+    color: var(--text);
+    max-width: 92%;
+    font-size: 0.85rem;
+  }
+
+  .msg.cliente{
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #06121c;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.admin{
+    align-self: flex-start;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+
+  .msg .msg-hora{
+    display: block;
+    margin-top: 4px;
+    font-size: 0.68rem;
+    opacity: 0.65;
+  }
+
+  .chat-wsp-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    background: #1d2a1f;
+    color: #3ddc84;
+    border: 1px solid rgba(61, 220, 132, 0.4);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .chat-pie{
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-soft);
+  }
+
+  .chat-form{
+    display: flex;
+    gap: 8px;
+  }
+
+  .chat-form input{
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+
+  .chat-form input:focus{
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .chat-form button{
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none;
+    border-radius: 10px;
+    padding: 0 18px;
+    color: #06121c;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .chat-form button:disabled{
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .chat-aviso-fin{
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  .chat-aviso-fin.visible{ display: flex; }
+  .chat-pie.oculto-form .chat-form{ display: none; }
+
+  .chat-nueva-btn{
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+
+  /* ---- Panel admin (solo visible con ?admin=1 en la URL) ---- */
+
+  .admin-lanzador{
+    display: none;
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 90;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.4px;
+    border-radius: 30px;
+    padding: 10px 18px;
+    cursor: pointer;
+  }
+
+  .admin-lanzador.visible{ display: block; }
+
+  .admin-ventana{
+    width: 100%;
+    max-width: 760px;
+    height: min(600px, 88vh);
+    display: none;
+    flex-direction: row;
+  }
+
+  .admin-ventana.abierto{ display: flex; }
+
+  .admin-lista{
+    width: 240px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--bg-soft);
+  }
+
+  .admin-lista-item{
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+
+  .admin-lista-item:hover, .admin-lista-item.activo{
+    background: rgba(62, 198, 255, 0.08);
+  }
+
+  .admin-lista-item .admin-item-id{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .admin-chat-panel{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .admin-controles{
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-soft);
+  }
+
+  .admin-controles button{
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  .admin-controles button.pausar-activo{ border-color: #f0b429; color: #f0b429; }
+  .admin-controles button.cerrar-activo{ border-color: #ef4444; color: #ef4444; }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="marca">
+      <div class="logo-circulo">
+        <img src="https://i.imgur.com/2LUhOX6.png" alt="Logo">
+      </div>
+      <span class="marca-texto">Servicio De TV</span>
+    </div>
+    <nav>
+      <a href="#" id="abrir-soporte">Soporte</a>
+      <a href="#contratar">Contratar Servicio</a>
+      <a href="#completo">Servicio Completo</a>
+    </nav>
+  </header>
+
+  <div class="banner">
+    <img src="" alt="Banner principal">
+  </div>
+
+  <div class="contenido">
+    <h2>Mas Informacion</h2>
+    <div class="caja-info">
+
+      <p class="intro">
+        Disfrutá de películas, series, canales en vivo, deportes, contenido infantil, música, noticias y mucho más,
+        todo en un solo lugar y pensado para toda la familia.
+      </p>
+
+      <div class="precio-destacado">
+        <span class="monto">$5.000</span>
+        <span class="periodo">por mes · hasta 4 dispositivos en simultáneo</span>
+      </div>
+
+      <div class="bloque-info">
+        <h3>Qué incluye el servicio</h3>
+        <div class="grid-categorias">
+          <div class="categoria">
+            <strong>Canales argentinos</strong>
+            <ul>
+              <li>Canales de aire y TV Pública</li>
+              <li>Canales nacionales, locales y regionales</li>
+              <li>Eventos y programación variada</li>
+            </ul>
+          </div>
+          <div class="categoria">
+            <strong>Canales internacionales</strong>
+            <ul>
+              <li>Latinoamérica</li>
+              <li>Estados Unidos</li>
+              <li>Entretenimiento para todos los gustos</li>
+            </ul>
+          </div>
+          <div class="categoria">
+            <strong>Deportes</strong>
+            <ul>
+              <li>Fútbol, Libertadores, Premier League, Champions</li>
+              <li>UFC, NBA, Fórmula 1, Tenis</li>
+            </ul>
+          </div>
+          <div class="categoria">
+            <strong>Películas y series</strong>
+            <ul>
+              <li>Estrenos y clásicos</li>
+              <li>Terror, acción, comedia, drama, animación</li>
+              <li>Series actualizadas</li>
+            </ul>
+          </div>
+          <div class="categoria">
+            <strong>Para toda la familia</strong>
+            <ul>
+              <li>Contenido infantil</li>
+              <li>Música, conciertos y videoclips</li>
+              <li>Radios argentinas</li>
+            </ul>
+          </div>
+          <div class="categoria">
+            <strong>Información y cultura</strong>
+            <ul>
+              <li>Noticias nacionales e internacionales</li>
+              <li>Documentales de historia, ciencia y naturaleza</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloque-info">
+        <h3>Packs disponibles</h3>
+        <ul class="lista-simple">
+          <li>Pack Fútbol</li>
+          <li>Pack HBO</li>
+          <li>Pack Universal</li>
+        </ul>
+      </div>
+
+      <div class="grid-2">
+        <div class="bloque-info">
+          <h3>Demo gratis por 1 hora</h3>
+          <p>
+            Antes de contratar podés pedir una prueba gratuita para comprobar el funcionamiento del servicio,
+            la calidad de reproducción, el contenido disponible y la compatibilidad con tu dispositivo.
+          </p>
+        </div>
+        <div class="bloque-info">
+          <h3>Requisito de internet</h3>
+          <p>
+            Se recomienda una conexión estable, a partir de 1 Mb o superior. Una mayor velocidad brinda una
+            mejor experiencia, sobre todo con varios dispositivos conectados.
+          </p>
+        </div>
+      </div>
+
+      <div class="bloque-info">
+        <h3>Dispositivos compatibles</h3>
+        <ul class="lista-simple">
+          <li>Android TV, Google TV y TV Box</li>
+          <li>Fire TV</li>
+          <li>Celulares Android y tablets</li>
+          <li>PC, notebook y Smart TV compatibles</li>
+          <li>Roku no es compatible</li>
+        </ul>
+      </div>
+
+      <div class="bloque-info">
+        <h3>Por qué elegirnos</h3>
+        <ul class="lista-simple">
+          <li>Gran variedad de canales, películas, series y deportes</li>
+          <li>Contenido infantil y radios argentinas</li>
+          <li>Compatible con varios dispositivos, hasta 4 al mismo tiempo</li>
+          <li>Demo gratis, activación rápida y contenido actualizado</li>
+          <li>Atención personalizada</li>
+        </ul>
+      </div>
+
+      <div class="bloque-info">
+        <h3>Cómo funciona</h3>
+        <ol class="lista-pasos">
+          <li>Nos escribís</li>
+          <li>Solicitás tu demo gratuita</li>
+          <li>Probás el servicio</li>
+          <li>Si te gusta, activás tu cuenta</li>
+          <li>Empezás a disfrutar</li>
+        </ol>
+      </div>
+
+    </div>
+
+    <div class="caja-chica">
+      <div class="imagen-chica">
+        <img src="https://i.imgur.com/2LUhOX6.png" alt="Imagen">
+      </div>
+      <div class="datos-pie">
+        <span class="derechos">Derechos Servicio De TV 2026</span>
+        <span class="contacto">Contacto: Numero - Gmail</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CHAT DE SOPORTE (CLIENTE) ================= -->
+  <div class="chat-overlay" id="chat-overlay">
+    <div class="chat-ventana">
+      <div class="chat-cabecera">
+        <div class="chat-titulo">
+          <span>Soporte Servicio De TV</span>
+          <span class="chat-estado" id="chat-estado">
+            <span class="punto"></span><span id="chat-estado-texto">Conectando…</span>
+          </span>
+        </div>
+        <button class="chat-cerrar-btn" id="cerrar-chat" aria-label="Cerrar">×</button>
+      </div>
+
+      <div class="chat-mensajes" id="chat-mensajes"></div>
+
+      <div class="chat-pie" id="chat-pie">
+        <div class="chat-aviso-fin" id="chat-aviso-fin">
+          <span>Esta conversación fue cerrada.</span>
+          <button class="chat-nueva-btn" id="nueva-conversacion">Iniciar una nueva conversación</button>
+        </div>
+        <form class="chat-form" id="chat-form" autocomplete="off">
+          <input type="text" id="chat-input" placeholder="Escribí tu consulta…" maxlength="500">
+          <button type="submit" id="chat-enviar">Enviar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PANEL ADMIN (solo con ?admin=1) ================= -->
+  <button class="admin-lanzador" id="admin-lanzador">PANEL SOPORTE</button>
+
+  <div class="chat-overlay" id="admin-overlay">
+    <div class="chat-ventana admin-ventana" id="admin-ventana">
+      <div class="admin-lista" id="admin-lista"></div>
+      <div class="admin-chat-panel">
+        <div class="chat-cabecera">
+          <div class="chat-titulo">
+            <span id="admin-chat-titulo">Elegí una conversación</span>
+            <span class="chat-estado" id="admin-chat-estado">
+              <span class="punto"></span><span id="admin-chat-estado-texto">—</span>
+            </span>
+          </div>
+          <button class="chat-cerrar-btn" id="cerrar-admin" aria-label="Cerrar">×</button>
+        </div>
+        <div class="admin-controles">
+          <button id="admin-pausar">Pausar</button>
+          <button id="admin-cerrar">Cerrar chat</button>
+        </div>
+        <div class="chat-mensajes" id="admin-mensajes"></div>
+        <div class="chat-pie">
+          <form class="chat-form" id="admin-form" autocomplete="off">
+            <input type="text" id="admin-input" placeholder="Responder al cliente…" maxlength="500">
+            <button type="submit">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase (Realtime Database) — reemplazá firebaseConfig por el de tu propio proyecto -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script>
+  (function(){
+
+    // ------------------------------------------------------------
+    // 1) CONFIGURÁ ACÁ TU PROYECTO DE FIREBASE (Realtime Database)
+    //    Sacalo de: Firebase Console > Configuración del proyecto > Tus apps
+    // ------------------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+      projectId: "TU_PROYECTO",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const NUMERO_WHATSAPP = "5492646732078"; // +54 9 264 673-2078
+    const MENSAJE_WSP = encodeURIComponent("Hola, quiero consultar sobre el Servicio De TV");
+    const LINK_WSP = `https://wa.me/${NUMERO_WHATSAPP}?text=${MENSAJE_WSP}`;
+
+    function horaActual(){
+      return new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHTML(str){
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ================= LADO CLIENTE =================
+
+    const overlay = document.getElementById('chat-overlay');
+    const mensajesEl = document.getElementById('chat-mensajes');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('chat-input');
+    const enviarBtn = document.getElementById('chat-enviar');
+    const estadoEl = document.getElementById('chat-estado');
+    const estadoTextoEl = document.getElementById('chat-estado-texto');
+    const pieEl = document.getElementById('chat-pie');
+    const avisoFinEl = document.getElementById('chat-aviso-fin');
+    const nuevaConvBtn = document.getElementById('nueva-conversacion');
+
+    let chatIdActual = null;
+    let refMensajesActual = null;
+    let refEstadoActual = null;
+
+    function idDeChat(){
+      let id = localStorage.getItem('soporte_chat_id');
+      if (!id) {
+        id = db.ref('soporte_chats').push().key;
+        localStorage.setItem('soporte_chat_id', id);
+      }
+      return id;
+    }
+
+    function pintarMensaje(msg){
+      const div = document.createElement('div');
+      div.className = 'msg ' + msg.autor;
+      let contenido = escapeHTML(msg.texto);
+      if (msg.autor === 'sistema') {
+        contenido += `<br><a class="chat-wsp-btn" href="${LINK_WSP}" target="_blank" rel="noopener">📲 Escribir por WhatsApp</a>`;
+      }
+      div.innerHTML = contenido + `<span class="msg-hora">${msg.hora || ''}</span>`;
+      mensajesEl.appendChild(div);
+      mensajesEl.scrollTop = mensajesEl.scrollHeight;
+    }
+
+    function actualizarEstadoUI(estado){
+      estadoEl.className = 'chat-estado' + (estado === 'pausado' ? ' pausado' : estado === 'cerrado' ? ' cerrado' : '');
+      estadoTextoEl.textContent = estado === 'abierto' ? 'En línea'
+        : estado === 'pausado' ? 'En pausa'
+        : 'Cerrado';
+
+      const esCerrado = estado === 'cerrado';
+      input.disabled = esCerrado;
+      enviarBtn.disabled = esCerrado;
+      pieEl.classList.toggle('oculto-form', esCerrado);
+      avisoFinEl.classList.toggle('visible', esCerrado);
+    }
+
+    function iniciarChatCliente(){
+      chatIdActual = idDeChat();
+      const refChat = db.ref('soporte_chats/' + chatIdActual);
+      refMensajesActual = refChat.child('mensajes');
+      refEstadoActual = refChat.child('estado');
+
+      refChat.child('creado').once('value', snap => {
+        if (!snap.exists()) {
+          refChat.child('creado').set(firebase.database.ServerValue.TIMESTAMP);
+          refEstadoActual.set('abierto');
+          refMensajesActual.push({
+            autor: 'sistema',
+            texto: 'Este chat de soporte no funciona las 24 horas: te respondemos apenas alguien esté disponible. Si necesitás una respuesta ahora mismo, escribinos por WhatsApp.',
+            hora: horaActual()
+          });
+        }
+      });
+
+      mensajesEl.innerHTML = '';
+      refMensajesActual.off();
+      refMensajesActual.on('child_added', snap => pintarMensaje(snap.val()));
+
+      refEstadoActual.off();
+      refEstadoActual.on('value', snap => actualizarEstadoUI(snap.val() || 'abierto'));
+    }
+
+    document.getElementById('abrir-soporte').addEventListener('click', function(e){
+      e.preventDefault();
+      overlay.classList.add('abierto');
+      iniciarChatCliente();
+    });
+
+    document.getElementById('cerrar-chat').addEventListener('click', function(){
+      overlay.classList.remove('abierto');
+    });
+
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      const texto = input.value.trim();
+      if (!texto || !refMensajesActual) return;
+      refMensajesActual.push({ autor: 'cliente', texto, hora: horaActual() });
+      input.value = '';
+    });
+
+    nuevaConvBtn.addEventListener('click', function(){
+      localStorage.removeItem('soporte_chat_id');
+      iniciarChatCliente();
+    });
+
+    // ================= LADO ADMIN (?admin=1) =================
+
+    if (new URLSearchParams(location.search).get('admin') === '1') {
+      const lanzador = document.getElementById('admin-lanzador');
+      lanzador.classList.add('visible');
+
+      const adminOverlay = document.getElementById('admin-overlay');
+      const listaEl = document.getElementById('admin-lista');
+      const adminMensajesEl = document.getElementById('admin-mensajes');
+      const adminForm = document.getElementById('admin-form');
+      const adminInput = document.getElementById('admin-input');
+      const adminTituloEl = document.getElementById('admin-chat-titulo');
+      const adminEstadoEl = document.getElementById('admin-chat-estado');
+      const adminEstadoTextoEl = document.getElementById('admin-chat-estado-texto');
+      const btnPausar = document.getElementById('admin-pausar');
+      const btnCerrar = document.getElementById('admin-cerrar');
+
+      let chatSeleccionado = null;
+      let refMensajesAdmin = null;
+      let refEstadoAdmin = null;
+
+      lanzador.addEventListener('click', () => adminOverlay.classList.add('abierto'));
+      document.getElementById('cerrar-admin').addEventListener('click', () => adminOverlay.classList.remove('abierto'));
+
+      db.ref('soporte_chats').on('value', snap => {
+        const chats = snap.val() || {};
+        listaEl.innerHTML = '';
+        Object.keys(chats).sort((a,b) => (chats[b].creado||0) - (chats[a].creado||0)).forEach(id => {
+          const chat = chats[id];
+          const item = document.createElement('div');
+          item.className = 'admin-lista-item' + (id === chatSeleccionado ? ' activo' : '');
+          const mensajes = chat.mensajes ? Object.values(chat.mensajes) : [];
+          const ultimo = mensajes[mensajes.length - 1];
+          item.innerHTML = `<span class="admin-item-id">${(chat.estado||'abierto').toUpperCase()} · ${id.slice(-6)}</span>${ultimo ? escapeHTML(ultimo.texto).slice(0,40) : 'Sin mensajes'}`;
+          item.addEventListener('click', () => seleccionarChat(id));
+          listaEl.appendChild(item);
+        });
+      });
+
+      function seleccionarChat(id){
+        chatSeleccionado = id;
+        adminTituloEl.textContent = 'Chat ' + id.slice(-6);
+        adminMensajesEl.innerHTML = '';
+
+        const refChat = db.ref('soporte_chats/' + id);
+        if (refMensajesAdmin) refMensajesAdmin.off();
+        if (refEstadoAdmin) refEstadoAdmin.off();
+
+        refMensajesAdmin = refChat.child('mensajes');
+        refEstadoAdmin = refChat.child('estado');
+
+        refMensajesAdmin.on('child_added', s => pintarMensajeAdmin(s.val()));
+        refEstadoAdmin.on('value', s => {
+          const estado = s.val() || 'abierto';
+          adminEstadoEl.className = 'chat-estado' + (estado === 'pausado' ? ' pausado' : estado === 'cerrado' ? ' cerrado' : '');
+          adminEstadoTextoEl.textContent = estado;
+          btnPausar.classList.toggle('pausar-activo', estado === 'pausado');
+          btnCerrar.classList.toggle('cerrar-activo', estado === 'cerrado');
+        });
+      }
+
+      function pintarMensajeAdmin(msg){
+        const div = document.createElement('div');
+        div.className = 'msg ' + msg.autor;
+        div.innerHTML = escapeHTML(msg.texto) + `<span class="msg-hora">${msg.hora || ''}</span>`;
+        adminMensajesEl.appendChild(div);
+        adminMensajesEl.scrollTop = adminMensajesEl.scrollHeight;
+      }
+
+      adminForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const texto = adminInput.value.trim();
+        if (!texto || !chatSeleccionado) return;
+        db.ref('soporte_chats/' + chatSeleccionado + '/mensajes').push({ autor: 'admin', texto, hora: horaActual() });
+        adminInput.value = '';
+      });
+
+      btnPausar.addEventListener('click', () => {
+        if (!chatSeleccionado) return;
+        db.ref('soporte_chats/' + chatSeleccionado + '/estado').once('value', s => {
+          db.ref('soporte_chats/' + chatSeleccionado + '/estado').set(s.val() === 'pausado' ? 'abierto' : 'pausado');
+        });
+      });
+
+      btnCerrar.addEventListener('click', () => {
+        if (!chatSeleccionado) return;
+        db.ref('soporte_chats/' + chatSeleccionado + '/estado').set('cerrado');
+      });
+    }
+
+  })();
+  </script>
+
+</body>
+</html>
