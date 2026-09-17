@@ -617,6 +617,101 @@
 
   .admin-controles button.pausar-activo{ border-color: #f0b429; color: #f0b429; }
   .admin-controles button.cerrar-activo{ border-color: #ef4444; color: #ef4444; }
+
+  /* ---- Login / registro (cliente y admin) ---- */
+
+  .oculto{ display: none !important; }
+
+  .auth-vista{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 22px;
+    overflow-y: auto;
+  }
+
+  .auth-tabs{
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 4px;
+  }
+
+  .auth-tab-btn{
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.3px;
+    padding: 10px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .auth-tab-btn.activo{
+    background: var(--panel);
+    color: var(--accent);
+  }
+
+  .auth-form{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .auth-form p.auth-intro{
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+
+  .auth-form input{
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.92rem;
+  }
+
+  .auth-form input:focus{
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .auth-form button[type="submit"]{
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    color: #06121c;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  .auth-error{
+    color: #ef4444;
+    font-size: 0.8rem;
+    min-height: 1em;
+  }
+
+  .chat-salir-btn{
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    margin-right: 6px;
+  }
 </style>
 </head>
 <body>
@@ -783,24 +878,53 @@
       <div class="chat-cabecera">
         <div class="chat-titulo">
           <span>Soporte Servicio De TV</span>
-          <span class="chat-estado" id="chat-estado">
+          <span class="chat-estado oculto" id="chat-estado">
             <span class="punto"></span><span id="chat-estado-texto">Conectando…</span>
           </span>
         </div>
-        <button class="chat-cerrar-btn" id="cerrar-chat" aria-label="Cerrar">×</button>
+        <div style="display:flex; align-items:center;">
+          <button class="chat-salir-btn oculto" id="salir-chat">Salir</button>
+          <button class="chat-cerrar-btn" id="cerrar-chat" aria-label="Cerrar">×</button>
+        </div>
       </div>
 
-      <div class="chat-mensajes" id="chat-mensajes"></div>
-
-      <div class="chat-pie" id="chat-pie">
-        <div class="chat-aviso-fin" id="chat-aviso-fin">
-          <span>Esta conversación fue cerrada.</span>
-          <button class="chat-nueva-btn" id="nueva-conversacion">Iniciar una nueva conversación</button>
+      <!-- Pantalla de acceso: crear conversación nueva o ingresar a una existente -->
+      <div class="auth-vista" id="vista-auth">
+        <div class="auth-tabs">
+          <button class="auth-tab-btn activo" id="tab-nueva" type="button">Nueva conversación</button>
+          <button class="auth-tab-btn" id="tab-ingresar" type="button">Ya tengo una cuenta</button>
         </div>
-        <form class="chat-form" id="chat-form" autocomplete="off">
-          <input type="text" id="chat-input" placeholder="Escribí tu consulta…" maxlength="500">
-          <button type="submit" id="chat-enviar">Enviar</button>
+
+        <form class="auth-form" id="form-registro">
+          <p class="auth-intro">Creá un usuario y una contraseña para tu conversación privada con soporte. La vas a necesitar si volvés a entrar desde otro dispositivo.</p>
+          <input type="text" id="reg-usuario" placeholder="Usuario" maxlength="30" autocomplete="off">
+          <input type="password" id="reg-clave" placeholder="Contraseña" maxlength="60">
+          <button type="submit">Iniciar nueva conversación</button>
+          <p class="auth-error" id="reg-error"></p>
         </form>
+
+        <form class="auth-form oculto" id="form-login">
+          <p class="auth-intro">Ingresá con el usuario y la contraseña que creaste al abrir tu conversación.</p>
+          <input type="text" id="login-usuario" placeholder="Usuario" maxlength="30" autocomplete="off">
+          <input type="password" id="login-clave" placeholder="Contraseña" maxlength="60">
+          <button type="submit">Ingresar</button>
+          <p class="auth-error" id="login-error"></p>
+        </form>
+      </div>
+
+      <!-- Vista del chat, una vez logueado -->
+      <div class="oculto" id="vista-chat" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+        <div class="chat-mensajes" id="chat-mensajes"></div>
+
+        <div class="chat-pie" id="chat-pie">
+          <div class="chat-aviso-fin" id="chat-aviso-fin">
+            <span>Esta conversación fue cerrada por soporte.</span>
+          </div>
+          <form class="chat-form" id="chat-form" autocomplete="off">
+            <input type="text" id="chat-input" placeholder="Escribí tu consulta…" maxlength="500">
+            <button type="submit" id="chat-enviar">Enviar</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -810,8 +934,21 @@
 
   <div class="chat-overlay" id="admin-overlay">
     <div class="chat-ventana admin-ventana" id="admin-ventana">
-      <div class="admin-lista" id="admin-lista"></div>
-      <div class="admin-chat-panel">
+
+      <!-- Login del vendedor -->
+      <div class="auth-vista" id="admin-vista-login">
+        <p class="auth-intro">Acceso privado para el equipo de soporte.</p>
+        <form class="auth-form" id="admin-form-login">
+          <input type="text" id="admin-login-usuario" placeholder="Usuario" autocomplete="off">
+          <input type="password" id="admin-login-clave" placeholder="Contraseña">
+          <button type="submit">Ingresar</button>
+          <p class="auth-error" id="admin-login-error"></p>
+        </form>
+      </div>
+
+      <!-- Bandeja de conversaciones -->
+      <div class="admin-lista oculto" id="admin-lista"></div>
+      <div class="admin-chat-panel oculto" id="admin-chat-panel">
         <div class="chat-cabecera">
           <div class="chat-titulo">
             <span id="admin-chat-titulo">Elegí una conversación</span>
@@ -836,16 +973,12 @@
     </div>
   </div>
 
-  <!-- Firebase (Realtime Database) — reemplazá firebaseConfig por el de tu propio proyecto -->
+  <!-- Firebase (Realtime Database) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script>
   (function(){
 
-    // ------------------------------------------------------------
-    // 1) CONFIGURÁ ACÁ TU PROYECTO DE FIREBASE (Realtime Database)
-    //    Sacalo de: Firebase Console > Configuración del proyecto > Tus apps
-    // ------------------------------------------------------------
     const firebaseConfig = {
       apiKey: "AIzaSyAmJtRakmbWFeNA7o9ii-Wj2ESbnZLGFcE",
       authDomain: "helio-santino-rp.firebaseapp.com",
@@ -858,6 +991,12 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
+    // Login fijo del vendedor. Al estar en el HTML es visible para quien mire
+    // el código fuente: no compartas el link con "?admin=1" y considerá
+    // cambiar esta contraseña de tanto en tanto.
+    const ADMIN_USUARIO = "Admin";
+    const ADMIN_CLAVE = "Admin1234";
 
     const NUMERO_WHATSAPP = "5492646732078"; // +54 9 264 673-2078
     const MENSAJE_WSP = encodeURIComponent("Hola, quiero consultar sobre el Servicio De TV");
@@ -873,9 +1012,28 @@
       return div.innerHTML;
     }
 
+    // Hash simple de contraseña (SHA-256). No reemplaza un sistema de
+    // autenticación real, pero evita guardar las contraseñas en texto plano.
+    async function hashClave(clave){
+      if (window.crypto && crypto.subtle) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clave));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      // Respaldo si no hay contexto seguro (ej. abrir el archivo con file://)
+      let h = 0;
+      for (let i = 0; i < clave.length; i++) { h = (h << 5) - h + clave.charCodeAt(i); h |= 0; }
+      return 'x' + h.toString(16);
+    }
+
+    function normalizarUsuario(u){
+      return u.trim().toLowerCase().replace(/[.#$/\[\]]/g, '');
+    }
+
     // ================= LADO CLIENTE =================
 
     const overlay = document.getElementById('chat-overlay');
+    const vistaAuth = document.getElementById('vista-auth');
+    const vistaChat = document.getElementById('vista-chat');
     const mensajesEl = document.getElementById('chat-mensajes');
     const form = document.getElementById('chat-form');
     const input = document.getElementById('chat-input');
@@ -884,19 +1042,43 @@
     const estadoTextoEl = document.getElementById('chat-estado-texto');
     const pieEl = document.getElementById('chat-pie');
     const avisoFinEl = document.getElementById('chat-aviso-fin');
-    const nuevaConvBtn = document.getElementById('nueva-conversacion');
+    const salirBtn = document.getElementById('salir-chat');
 
-    let chatIdActual = null;
+    const tabNueva = document.getElementById('tab-nueva');
+    const tabIngresar = document.getElementById('tab-ingresar');
+    const formRegistro = document.getElementById('form-registro');
+    const formLogin = document.getElementById('form-login');
+    const regError = document.getElementById('reg-error');
+    const loginError = document.getElementById('login-error');
+
     let refMensajesActual = null;
     let refEstadoActual = null;
 
-    function idDeChat(){
-      let id = localStorage.getItem('soporte_chat_id');
-      if (!id) {
-        id = db.ref('soporte_chats').push().key;
-        localStorage.setItem('soporte_chat_id', id);
-      }
-      return id;
+    tabNueva.addEventListener('click', () => {
+      tabNueva.classList.add('activo');
+      tabIngresar.classList.remove('activo');
+      formRegistro.classList.remove('oculto');
+      formLogin.classList.add('oculto');
+    });
+
+    tabIngresar.addEventListener('click', () => {
+      tabIngresar.classList.add('activo');
+      tabNueva.classList.remove('activo');
+      formLogin.classList.remove('oculto');
+      formRegistro.classList.add('oculto');
+    });
+
+    function mostrarAuth(){
+      vistaChat.classList.add('oculto');
+      vistaAuth.classList.remove('oculto');
+      estadoEl.classList.add('oculto');
+      salirBtn.classList.add('oculto');
+      regError.textContent = '';
+      loginError.textContent = '';
+      formRegistro.reset();
+      formLogin.reset();
+      if (refMensajesActual) refMensajesActual.off();
+      if (refEstadoActual) refEstadoActual.off();
     }
 
     function pintarMensaje(msg){
@@ -924,25 +1106,19 @@
       avisoFinEl.classList.toggle('visible', esCerrado);
     }
 
-    function iniciarChatCliente(){
-      chatIdActual = idDeChat();
-      const refChat = db.ref('soporte_chats/' + chatIdActual);
+    function entrarAlChat(chatId){
+      localStorage.setItem('soporte_chat_id', chatId);
+
+      vistaAuth.classList.add('oculto');
+      vistaChat.classList.remove('oculto');
+      estadoEl.classList.remove('oculto');
+      salirBtn.classList.remove('oculto');
+      mensajesEl.innerHTML = '';
+
+      const refChat = db.ref('soporte_chats/' + chatId);
       refMensajesActual = refChat.child('mensajes');
       refEstadoActual = refChat.child('estado');
 
-      refChat.child('creado').once('value', snap => {
-        if (!snap.exists()) {
-          refChat.child('creado').set(firebase.database.ServerValue.TIMESTAMP);
-          refEstadoActual.set('abierto');
-          refMensajesActual.push({
-            autor: 'sistema',
-            texto: 'Este chat de soporte no funciona las 24 horas: te respondemos apenas alguien esté disponible. Si necesitás una respuesta ahora mismo, escribinos por WhatsApp.',
-            hora: horaActual()
-          });
-        }
-      });
-
-      mensajesEl.innerHTML = '';
       refMensajesActual.off();
       refMensajesActual.on('child_added', snap => pintarMensaje(snap.val()));
 
@@ -950,14 +1126,79 @@
       refEstadoActual.on('value', snap => actualizarEstadoUI(snap.val() || 'abierto'));
     }
 
+    formRegistro.addEventListener('submit', async function(e){
+      e.preventDefault();
+      regError.textContent = '';
+      const usuario = normalizarUsuario(document.getElementById('reg-usuario').value);
+      const clave = document.getElementById('reg-clave').value;
+
+      if (usuario.length < 3) { regError.textContent = 'El usuario debe tener al menos 3 caracteres.'; return; }
+      if (clave.length < 4) { regError.textContent = 'La contraseña debe tener al menos 4 caracteres.'; return; }
+
+      const refUsuario = db.ref('soporte_usuarios/' + usuario);
+      const snap = await refUsuario.once('value');
+      if (snap.exists()) {
+        regError.textContent = 'Ese usuario ya existe. Probá con otro o iniciá sesión.';
+        return;
+      }
+
+      const claveHash = await hashClave(clave);
+      const chatId = db.ref('soporte_chats').push().key;
+
+      await refUsuario.set({ claveHash, chatId, creado: firebase.database.ServerValue.TIMESTAMP });
+      await db.ref('soporte_chats/' + chatId).set({
+        usuario,
+        estado: 'abierto',
+        creado: firebase.database.ServerValue.TIMESTAMP
+      });
+      await db.ref('soporte_chats/' + chatId + '/mensajes').push({
+        autor: 'sistema',
+        texto: 'Este chat de soporte no funciona las 24 horas: te respondemos apenas alguien esté disponible. Si necesitás una respuesta ahora mismo, escribinos por WhatsApp.',
+        hora: horaActual()
+      });
+
+      localStorage.setItem('soporte_usuario', usuario);
+      entrarAlChat(chatId);
+    });
+
+    formLogin.addEventListener('submit', async function(e){
+      e.preventDefault();
+      loginError.textContent = '';
+      const usuario = normalizarUsuario(document.getElementById('login-usuario').value);
+      const clave = document.getElementById('login-clave').value;
+
+      const snap = await db.ref('soporte_usuarios/' + usuario).once('value');
+      if (!snap.exists()) { loginError.textContent = 'No encontramos ese usuario.'; return; }
+
+      const datos = snap.val();
+      const claveHash = await hashClave(clave);
+      if (claveHash !== datos.claveHash) { loginError.textContent = 'Contraseña incorrecta.'; return; }
+
+      localStorage.setItem('soporte_usuario', usuario);
+      entrarAlChat(datos.chatId);
+    });
+
     document.getElementById('abrir-soporte').addEventListener('click', function(e){
       e.preventDefault();
       overlay.classList.add('abierto');
-      iniciarChatCliente();
+
+      const usuarioGuardado = localStorage.getItem('soporte_usuario');
+      const chatIdGuardado = localStorage.getItem('soporte_chat_id');
+      if (usuarioGuardado && chatIdGuardado) {
+        entrarAlChat(chatIdGuardado);
+      } else {
+        mostrarAuth();
+      }
     });
 
     document.getElementById('cerrar-chat').addEventListener('click', function(){
       overlay.classList.remove('abierto');
+    });
+
+    salirBtn.addEventListener('click', function(){
+      localStorage.removeItem('soporte_usuario');
+      localStorage.removeItem('soporte_chat_id');
+      mostrarAuth();
     });
 
     form.addEventListener('submit', function(e){
@@ -968,11 +1209,6 @@
       input.value = '';
     });
 
-    nuevaConvBtn.addEventListener('click', function(){
-      localStorage.removeItem('soporte_chat_id');
-      iniciarChatCliente();
-    });
-
     // ================= LADO ADMIN (?admin=1) =================
 
     if (new URLSearchParams(location.search).get('admin') === '1') {
@@ -980,7 +1216,11 @@
       lanzador.classList.add('visible');
 
       const adminOverlay = document.getElementById('admin-overlay');
+      const adminVistaLogin = document.getElementById('admin-vista-login');
+      const adminFormLogin = document.getElementById('admin-form-login');
+      const adminLoginError = document.getElementById('admin-login-error');
       const listaEl = document.getElementById('admin-lista');
+      const panelEl = document.getElementById('admin-chat-panel');
       const adminMensajesEl = document.getElementById('admin-mensajes');
       const adminForm = document.getElementById('admin-form');
       const adminInput = document.getElementById('admin-input');
@@ -993,33 +1233,65 @@
       let chatSeleccionado = null;
       let refMensajesAdmin = null;
       let refEstadoAdmin = null;
+      let listaCargada = false;
 
-      lanzador.addEventListener('click', () => adminOverlay.classList.add('abierto'));
+      lanzador.addEventListener('click', () => {
+        adminOverlay.classList.add('abierto');
+        if (sessionStorage.getItem('soporte_admin_ok') === '1') {
+          mostrarBandejaAdmin();
+        }
+      });
+
       document.getElementById('cerrar-admin').addEventListener('click', () => adminOverlay.classList.remove('abierto'));
 
-      db.ref('soporte_chats').on('value', snap => {
-        const chats = snap.val() || {};
-        listaEl.innerHTML = '';
-        Object.keys(chats).sort((a,b) => (chats[b].creado||0) - (chats[a].creado||0)).forEach(id => {
-          const chat = chats[id];
-          const item = document.createElement('div');
-          item.className = 'admin-lista-item' + (id === chatSeleccionado ? ' activo' : '');
-          const mensajes = chat.mensajes ? Object.values(chat.mensajes) : [];
-          const ultimo = mensajes[mensajes.length - 1];
-          item.innerHTML = `<span class="admin-item-id">${(chat.estado||'abierto').toUpperCase()} · ${id.slice(-6)}</span>${ultimo ? escapeHTML(ultimo.texto).slice(0,40) : 'Sin mensajes'}`;
-          item.addEventListener('click', () => seleccionarChat(id));
-          listaEl.appendChild(item);
-        });
+      adminFormLogin.addEventListener('submit', function(e){
+        e.preventDefault();
+        const u = document.getElementById('admin-login-usuario').value.trim();
+        const c = document.getElementById('admin-login-clave').value;
+        if (u === ADMIN_USUARIO && c === ADMIN_CLAVE) {
+          sessionStorage.setItem('soporte_admin_ok', '1');
+          adminLoginError.textContent = '';
+          mostrarBandejaAdmin();
+        } else {
+          adminLoginError.textContent = 'Usuario o contraseña incorrectos.';
+        }
       });
+
+      function mostrarBandejaAdmin(){
+        adminVistaLogin.classList.add('oculto');
+        listaEl.classList.remove('oculto');
+        panelEl.classList.remove('oculto');
+        if (!listaCargada) { cargarLista(); listaCargada = true; }
+      }
+
+      function cargarLista(){
+        db.ref('soporte_chats').on('value', snap => {
+          const chats = snap.val() || {};
+          listaEl.innerHTML = '';
+          Object.keys(chats).sort((a,b) => (chats[b].creado||0) - (chats[a].creado||0)).forEach(id => {
+            const chat = chats[id];
+            const item = document.createElement('div');
+            item.className = 'admin-lista-item' + (id === chatSeleccionado ? ' activo' : '');
+            const mensajes = chat.mensajes ? Object.values(chat.mensajes) : [];
+            const ultimo = mensajes[mensajes.length - 1];
+            item.innerHTML = `<span class="admin-item-id">${(chat.estado||'abierto').toUpperCase()} · ${escapeHTML(chat.usuario || id.slice(-6))}</span>${ultimo ? escapeHTML(ultimo.texto).slice(0,40) : 'Sin mensajes'}`;
+            item.addEventListener('click', () => seleccionarChat(id));
+            listaEl.appendChild(item);
+          });
+        });
+      }
 
       function seleccionarChat(id){
         chatSeleccionado = id;
-        adminTituloEl.textContent = 'Chat ' + id.slice(-6);
         adminMensajesEl.innerHTML = '';
 
         const refChat = db.ref('soporte_chats/' + id);
         if (refMensajesAdmin) refMensajesAdmin.off();
         if (refEstadoAdmin) refEstadoAdmin.off();
+
+        refChat.child('usuario').once('value', s => {
+          adminTituloEl.textContent = s.val() ? ('Chat de ' + s.val()) : ('Chat ' + id.slice(-6));
+        });
 
         refMensajesAdmin = refChat.child('mensajes');
         refEstadoAdmin = refChat.child('estado');
