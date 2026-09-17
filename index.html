@@ -916,7 +916,7 @@
 
         <div class="chat-pie" id="chat-pie">
           <div class="chat-aviso-fin" id="chat-aviso-fin">
-            <span>Esta conversación fue cerrada por soporte.</span>
+            <span id="chat-aviso-fin-texto">Esta conversación fue cerrada por soporte.</span>
           </div>
           <form class="chat-form" id="chat-form" autocomplete="off">
             <input type="text" id="chat-input" placeholder="Escribí tu consulta…" maxlength="500">
@@ -1095,20 +1095,38 @@
       mensajesEl.scrollTop = mensajesEl.scrollHeight;
     }
 
+    // Borra el chat (y libera el usuario) 2 minutos después de cerrarse.
+    // Usa la marca de tiempo "cerradoEn" guardada por el servidor para que
+    // el tiempo restante sea el mismo sin importar quién lo calcule.
+    function programarBorrado(refChat, usuario){
+      refChat.child('cerradoEn').once('value', snap => {
+        const cerradoEn = snap.val() || Date.now();
+        const restante = Math.max(0, 120000 - (Date.now() - cerradoEn));
+        setTimeout(() => {
+          refChat.remove();
+          if (usuario) db.ref('soporte_usuarios/' + usuario).remove();
+        }, restante);
+      });
+    }
+
     function actualizarEstadoUI(estado){
       estadoEl.className = 'chat-estado' + (estado === 'pausado' ? ' pausado' : estado === 'cerrado' ? ' cerrado' : '');
       estadoTextoEl.textContent = estado === 'abierto' ? 'En línea'
         : estado === 'pausado' ? 'En pausa'
         : 'Cerrado';
 
-      const esCerrado = estado === 'cerrado';
-      input.disabled = esCerrado;
-      enviarBtn.disabled = esCerrado;
-      pieEl.classList.toggle('oculto-form', esCerrado);
-      avisoFinEl.classList.toggle('visible', esCerrado);
+      const bloqueado = estado === 'cerrado' || estado === 'pausado';
+      input.disabled = bloqueado;
+      enviarBtn.disabled = bloqueado;
+      pieEl.classList.toggle('oculto-form', bloqueado);
+      avisoFinEl.classList.toggle('visible', bloqueado);
+
+      document.getElementById('chat-aviso-fin-texto').textContent = estado === 'pausado'
+        ? 'El chat está en pausa. Podés esperar la respuesta o escribirnos por WhatsApp.'
+        : 'Esta conversación fue cerrada por soporte.';
     }
 
-    function entrarAlChat(chatId){
+    function entrarAlChat(chatId, usuario){
       localStorage.setItem('soporte_chat_id', chatId);
 
       vistaAuth.classList.add('oculto');
@@ -1120,12 +1138,27 @@
       const refChat = db.ref('soporte_chats/' + chatId);
       refMensajesActual = refChat.child('mensajes');
       refEstadoActual = refChat.child('estado');
+      let borradoProgramado = false;
 
       refMensajesActual.off();
       refMensajesActual.on('child_added', snap => pintarMensaje(snap.val()));
 
       refEstadoActual.off();
-      refEstadoActual.on('value', snap => actualizarEstadoUI(snap.val() || 'abierto'));
+      refEstadoActual.on('value', snap => {
+        if (!snap.exists()) {
+          // El chat ya fue borrado (pasaron 2 minutos desde el cierre)
+          localStorage.removeItem('soporte_usuario');
+          localStorage.removeItem('soporte_chat_id');
+          mostrarAuth();
+          return;
+        }
+        const estado = snap.val();
+        actualizarEstadoUI(estado);
+        if (estado === 'cerrado' && !borradoProgramado) {
+          borradoProgramado = true;
+          programarBorrado(refChat, usuario);
+        }
+      });
     }
 
     formRegistro.addEventListener('submit', async function(e){
@@ -1160,7 +1193,7 @@
       });
 
       localStorage.setItem('soporte_usuario', usuario);
-      entrarAlChat(chatId);
+      entrarAlChat(chatId, usuario);
     });
 
     formLogin.addEventListener('submit', async function(e){
@@ -1177,7 +1210,7 @@
       if (claveHash !== datos.claveHash) { loginError.textContent = 'Contraseña incorrecta.'; return; }
 
       localStorage.setItem('soporte_usuario', usuario);
-      entrarAlChat(datos.chatId);
+      entrarAlChat(datos.chatId, usuario);
     });
 
     document.getElementById('abrir-soporte').addEventListener('click', function(e){
@@ -1196,7 +1229,7 @@
       const usuarioGuardado = localStorage.getItem('soporte_usuario');
       const chatIdGuardado = localStorage.getItem('soporte_chat_id');
       if (usuarioGuardado && chatIdGuardado) {
-        entrarAlChat(chatIdGuardado);
+        entrarAlChat(chatIdGuardado, usuarioGuardado);
       } else {
         mostrarAuth();
       }
@@ -1281,6 +1314,16 @@
           listaEl.innerHTML = '';
           Object.keys(chats).sort((a,b) => (chats[b].creado||0) - (chats[a].creado||0)).forEach(id => {
             const chat = chats[id];
+
+            // Por si nadie tenía el navegador abierto cuando se cumplieron
+            // los 2 minutos: al entrar al panel se limpian los chats
+            // cerrados que ya vencieron.
+            if (chat.estado === 'cerrado' && chat.cerradoEn && (Date.now() - chat.cerradoEn) >= 120000) {
+              db.ref('soporte_chats/' + id).remove();
+              if (chat.usuario) db.ref('soporte_usuarios/' + chat.usuario).remove();
+              return;
+            }
+
             const item = document.createElement('div');
             item.className = 'admin-lista-item' + (id === chatSeleccionado ? ' activo' : '');
             const mensajes = chat.mensajes ? Object.values(chat.mensajes) : [];
@@ -1295,13 +1338,16 @@
       function seleccionarChat(id){
         chatSeleccionado = id;
         adminMensajesEl.innerHTML = '';
+        let usuarioDeEsteChat = null;
+        let borradoProgramado = false;
 
         const refChat = db.ref('soporte_chats/' + id);
         if (refMensajesAdmin) refMensajesAdmin.off();
         if (refEstadoAdmin) refEstadoAdmin.off();
 
         refChat.child('usuario').once('value', s => {
-          adminTituloEl.textContent = s.val() ? ('Chat de ' + s.val()) : ('Chat ' + id.slice(-6));
+          usuarioDeEsteChat = s.val();
+          adminTituloEl.textContent = usuarioDeEsteChat ? ('Chat de ' + usuarioDeEsteChat) : ('Chat ' + id.slice(-6));
         });
 
         refMensajesAdmin = refChat.child('mensajes');
@@ -1309,11 +1355,28 @@
 
         refMensajesAdmin.on('child_added', s => pintarMensajeAdmin(s.val()));
         refEstadoAdmin.on('value', s => {
+          if (!s.exists()) {
+            // El chat ya fue borrado (pasaron 2 minutos desde el cierre)
+            if (chatSeleccionado === id) {
+              chatSeleccionado = null;
+              adminTituloEl.textContent = 'Elegí una conversación';
+              adminEstadoTextoEl.textContent = '—';
+              adminEstadoEl.className = 'chat-estado';
+              adminMensajesEl.innerHTML = '';
+              btnPausar.classList.remove('pausar-activo');
+              btnCerrar.classList.remove('cerrar-activo');
+            }
+            return;
+          }
           const estado = s.val() || 'abierto';
           adminEstadoEl.className = 'chat-estado' + (estado === 'pausado' ? ' pausado' : estado === 'cerrado' ? ' cerrado' : '');
           adminEstadoTextoEl.textContent = estado;
           btnPausar.classList.toggle('pausar-activo', estado === 'pausado');
           btnCerrar.classList.toggle('cerrar-activo', estado === 'cerrado');
+          if (estado === 'cerrado' && !borradoProgramado) {
+            borradoProgramado = true;
+            programarBorrado(refChat, usuarioDeEsteChat);
+          }
         });
       }
 
@@ -1342,7 +1405,10 @@
 
       btnCerrar.addEventListener('click', () => {
         if (!chatSeleccionado) return;
-        db.ref('soporte_chats/' + chatSeleccionado + '/estado').set('cerrado');
+        db.ref('soporte_chats/' + chatSeleccionado).update({
+          estado: 'cerrado',
+          cerradoEn: firebase.database.ServerValue.TIMESTAMP
+        });
       });
     }
 
