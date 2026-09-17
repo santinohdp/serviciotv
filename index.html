@@ -1029,6 +1029,10 @@
       return u.trim().toLowerCase().replace(/[.#$/\[\]]/g, '');
     }
 
+    // true si la URL trae ?admin=1 — decide si "Soporte" abre el chat del
+    // cliente o el panel del vendedor.
+    const modoAdmin = new URLSearchParams(location.search).get('admin') === '1';
+
     // ================= LADO CLIENTE =================
 
     const overlay = document.getElementById('chat-overlay');
@@ -1180,6 +1184,15 @@
 
     document.getElementById('abrir-soporte').addEventListener('click', function(e){
       e.preventDefault();
+
+      if (modoAdmin) {
+        document.getElementById('admin-overlay').classList.add('abierto');
+        if (sessionStorage.getItem('soporte_admin_ok') === '1') {
+          mostrarBandejaAdmin();
+        }
+        return;
+      }
+
       overlay.classList.add('abierto');
 
       const usuarioGuardado = localStorage.getItem('soporte_usuario');
@@ -1211,7 +1224,7 @@
 
     // ================= LADO ADMIN (?admin=1) =================
 
-    if (new URLSearchParams(location.search).get('admin') === '1') {
+    if (modoAdmin) {
       const lanzador = document.getElementById('admin-lanzador');
       lanzador.classList.add('visible');
 
