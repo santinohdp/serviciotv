@@ -615,6 +615,8 @@
 
   .admin-controles button.pausar-activo{ border-color: #f0b429; color: #f0b429; }
   .admin-controles button.cerrar-activo{ border-color: #ef4444; color: #ef4444; }
+  .admin-controles button#admin-borrar{ border-color: rgba(239, 68, 68, 0.4); color: #ef4444; }
+  .admin-controles button#admin-borrar:hover{ background: rgba(239, 68, 68, 0.12); }
 
   /* ---- Login / registro (cliente y admin) ---- */
 
@@ -959,6 +961,7 @@
         <div class="admin-controles">
           <button id="admin-pausar">Pausar</button>
           <button id="admin-cerrar">Cerrar chat</button>
+          <button id="admin-borrar">Borrar chat</button>
         </div>
         <div class="chat-mensajes" id="admin-mensajes"></div>
         <div class="chat-pie">
@@ -1095,20 +1098,6 @@
       mensajesEl.scrollTop = mensajesEl.scrollHeight;
     }
 
-    // Borra el chat (y libera el usuario) 2 minutos después de cerrarse.
-    // Usa la marca de tiempo "cerradoEn" guardada por el servidor para que
-    // el tiempo restante sea el mismo sin importar quién lo calcule.
-    function programarBorrado(refChat, usuario){
-      refChat.child('cerradoEn').once('value', snap => {
-        const cerradoEn = snap.val() || Date.now();
-        const restante = Math.max(0, 120000 - (Date.now() - cerradoEn));
-        setTimeout(() => {
-          refChat.remove();
-          if (usuario) db.ref('soporte_usuarios/' + usuario).remove();
-        }, restante);
-      });
-    }
-
     function actualizarEstadoUI(estado){
       estadoEl.className = 'chat-estado' + (estado === 'pausado' ? ' pausado' : estado === 'cerrado' ? ' cerrado' : '');
       estadoTextoEl.textContent = estado === 'abierto' ? 'En línea'
@@ -1138,7 +1127,6 @@
       const refChat = db.ref('soporte_chats/' + chatId);
       refMensajesActual = refChat.child('mensajes');
       refEstadoActual = refChat.child('estado');
-      let borradoProgramado = false;
 
       refMensajesActual.off();
       refMensajesActual.on('child_added', snap => pintarMensaje(snap.val()));
@@ -1146,18 +1134,13 @@
       refEstadoActual.off();
       refEstadoActual.on('value', snap => {
         if (!snap.exists()) {
-          // El chat ya fue borrado (pasaron 2 minutos desde el cierre)
+          // El admin borró la conversación
           localStorage.removeItem('soporte_usuario');
           localStorage.removeItem('soporte_chat_id');
           mostrarAuth();
           return;
         }
-        const estado = snap.val();
-        actualizarEstadoUI(estado);
-        if (estado === 'cerrado' && !borradoProgramado) {
-          borradoProgramado = true;
-          programarBorrado(refChat, usuario);
-        }
+        actualizarEstadoUI(snap.val());
       });
     }
 
@@ -1273,6 +1256,7 @@
       const adminEstadoTextoEl = document.getElementById('admin-chat-estado-texto');
       const btnPausar = document.getElementById('admin-pausar');
       const btnCerrar = document.getElementById('admin-cerrar');
+      const btnBorrar = document.getElementById('admin-borrar');
 
       let chatSeleccionado = null;
       let refMensajesAdmin = null;
@@ -1314,16 +1298,6 @@
           listaEl.innerHTML = '';
           Object.keys(chats).sort((a,b) => (chats[b].creado||0) - (chats[a].creado||0)).forEach(id => {
             const chat = chats[id];
-
-            // Por si nadie tenía el navegador abierto cuando se cumplieron
-            // los 2 minutos: al entrar al panel se limpian los chats
-            // cerrados que ya vencieron.
-            if (chat.estado === 'cerrado' && chat.cerradoEn && (Date.now() - chat.cerradoEn) >= 120000) {
-              db.ref('soporte_chats/' + id).remove();
-              if (chat.usuario) db.ref('soporte_usuarios/' + chat.usuario).remove();
-              return;
-            }
-
             const item = document.createElement('div');
             item.className = 'admin-lista-item' + (id === chatSeleccionado ? ' activo' : '');
             const mensajes = chat.mensajes ? Object.values(chat.mensajes) : [];
@@ -1339,7 +1313,6 @@
         chatSeleccionado = id;
         adminMensajesEl.innerHTML = '';
         let usuarioDeEsteChat = null;
-        let borradoProgramado = false;
 
         const refChat = db.ref('soporte_chats/' + id);
         if (refMensajesAdmin) refMensajesAdmin.off();
@@ -1356,7 +1329,7 @@
         refMensajesAdmin.on('child_added', s => pintarMensajeAdmin(s.val()));
         refEstadoAdmin.on('value', s => {
           if (!s.exists()) {
-            // El chat ya fue borrado (pasaron 2 minutos desde el cierre)
+            // La conversación fue borrada
             if (chatSeleccionado === id) {
               chatSeleccionado = null;
               adminTituloEl.textContent = 'Elegí una conversación';
@@ -1373,10 +1346,6 @@
           adminEstadoTextoEl.textContent = estado;
           btnPausar.classList.toggle('pausar-activo', estado === 'pausado');
           btnCerrar.classList.toggle('cerrar-activo', estado === 'cerrado');
-          if (estado === 'cerrado' && !borradoProgramado) {
-            borradoProgramado = true;
-            programarBorrado(refChat, usuarioDeEsteChat);
-          }
         });
       }
 
@@ -1405,9 +1374,18 @@
 
       btnCerrar.addEventListener('click', () => {
         if (!chatSeleccionado) return;
-        db.ref('soporte_chats/' + chatSeleccionado).update({
-          estado: 'cerrado',
-          cerradoEn: firebase.database.ServerValue.TIMESTAMP
+        db.ref('soporte_chats/' + chatSeleccionado + '/estado').set('cerrado');
+      });
+
+      btnBorrar.addEventListener('click', () => {
+        if (!chatSeleccionado) return;
+        if (!confirm('¿Borrar esta conversación? El cliente va a tener que crear una cuenta nueva para volver a escribir.')) return;
+
+        const idABorrar = chatSeleccionado;
+        db.ref('soporte_chats/' + idABorrar + '/usuario').once('value', s => {
+          const usuario = s.val();
+          db.ref('soporte_chats/' + idABorrar).remove();
+          if (usuario) db.ref('soporte_usuarios/' + usuario).remove();
         });
       });
     }
