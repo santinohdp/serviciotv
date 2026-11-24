@@ -403,6 +403,8 @@
   }
 
   .msg a{ color: inherit; text-decoration: underline; }
+  .msg-texto{ white-space: pre-line; }
+  .msg-acciones{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 
   .msg.sistema{
     align-self: center;
@@ -885,6 +887,23 @@
     color: #3ddc84;
   }
 
+  .editor-soporte-boton{
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.4fr) auto;
+    gap: 8px;
+    align-items: end;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg);
+  }
+
+  .editor-soporte-boton .editor-campo{ min-width: 0; }
+
+  @media (max-width: 640px){
+    .editor-soporte-boton{ grid-template-columns: 1fr; }
+  }
+
   /* ---- Editor de páginas del menú ---- */
 
   .editor-pagina{
@@ -1321,6 +1340,23 @@
 
         <!-- Vista: editor del sitio -->
         <div class="editor-sitio oculto" id="editor-sitio">
+          <div class="editor-seccion editor-soporte-bienvenida">
+            <div class="editor-seccion-cabecera">
+              <span>MENSAJE INICIAL DE SOPORTE</span>
+            </div>
+            <p class="editor-ayuda">Este mensaje aparece automáticamente cuando una persona inicia una conversación nueva. Podés cambiar el texto y agregar, editar o eliminar los botones que aparecen debajo.</p>
+            <div class="editor-campo">
+              <label>Mensaje que recibe el cliente</label>
+              <textarea id="editor-soporte-mensaje" rows="5" placeholder="Escribí el mensaje de bienvenida..."></textarea>
+            </div>
+            <div class="editor-campo">
+              <label>Botones y enlaces del mensaje</label>
+              <div id="editor-soporte-botones" style="display:flex; flex-direction:column; gap:10px;"></div>
+              <button class="editor-agregar-btn" id="editor-soporte-agregar-boton" type="button">+ Agregar botón</button>
+              <p class="editor-ayuda">Cada botón necesita un texto y un enlace. Se aceptan enlaces http://, https://, mailto: y tel:. Para WhatsApp podés usar, por ejemplo, https://wa.me/549...</p>
+            </div>
+          </div>
+
 <div class="editor-fila-2">
             <div class="editor-campo">
               <label>Precio (monto)</label>
@@ -1495,6 +1531,12 @@
       footerImg: 'https://i.imgur.com/2LUhOX6.png',
       footerDerechos: 'Derechos Servicio De TV 2026',
       footerContacto: 'Contacto: Numero - Gmail',
+      mensajeInicialSoporte: {
+        texto: 'Este chat de soporte no funciona las 24 horas: te respondemos apenas alguien esté disponible. Si necesitás una respuesta ahora mismo, escribinos por WhatsApp.',
+        botones: [
+          { texto: '📲 Escribir por WhatsApp', url: 'https://wa.me/5492646732078?text=Hola%2C%20quiero%20consultar%20sobre%20el%20Servicio%20De%20TV' }
+        ]
+      },
       secciones: [
         {
           titulo: 'Qué incluye el servicio',
@@ -1667,9 +1709,56 @@
       }
     });
 
+    const MENSAJE_SOPORTE_POR_DEFECTO = {
+      texto: 'Este chat de soporte no funciona las 24 horas: te respondemos apenas alguien esté disponible. Si necesitás una respuesta ahora mismo, escribinos por WhatsApp.',
+      botones: [
+        { texto: '📲 Escribir por WhatsApp', url: 'https://wa.me/5492646732078?text=Hola%2C%20quiero%20consultar%20sobre%20el%20Servicio%20De%20TV' }
+      ]
+    };
+
+    let mensajeInicialSoporteActual = {
+      texto: MENSAJE_SOPORTE_POR_DEFECTO.texto,
+      botones: MENSAJE_SOPORTE_POR_DEFECTO.botones.map(b => ({ ...b }))
+    };
+
+    function urlSoporteValida(valor){
+      const url = String(valor || '').trim();
+      if (!url) return '';
+      if (!/^(https?:\/\/|mailto:|tel:)/i.test(url)) return '';
+      try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol)) return '';
+        return url;
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function normalizarBotonesSoporte(botones){
+      const lista = Array.isArray(botones)
+        ? botones
+        : (botones && typeof botones === 'object' ? Object.values(botones) : []);
+      return lista.filter(Boolean).map(boton => ({
+        texto: String(boton.texto || '').trim(),
+        url: urlSoporteValida(boton.url)
+      })).filter(boton => boton.texto && boton.url);
+    }
+
+    function normalizarMensajeInicialSoporte(config){
+      const entrada = config && typeof config === 'object' ? config : {};
+      const tieneBotones = Object.prototype.hasOwnProperty.call(entrada, 'botones');
+      return {
+        texto: typeof entrada.texto === 'string' ? entrada.texto : MENSAJE_SOPORTE_POR_DEFECTO.texto,
+        botones: tieneBotones
+          ? normalizarBotonesSoporte(entrada.botones)
+          : normalizarBotonesSoporte(MENSAJE_SOPORTE_POR_DEFECTO.botones)
+      };
+    }
+
     function renderSitio(datos){
       if (!datos) return;
 
+      mensajeInicialSoporteActual = normalizarMensajeInicialSoporte(datos.mensajeInicialSoporte);
       document.getElementById('footer-img').src = datos.footerImg || '';
       document.getElementById('footer-derechos').textContent = datos.footerDerechos || '';
       document.getElementById('footer-contacto').textContent = datos.footerContacto || '';
@@ -1864,14 +1953,47 @@
       clienteSincronizado = false;
     }
 
+    function pintarContenidoMensaje(div, msg){
+      const texto = document.createElement('div');
+      texto.className = 'msg-texto';
+      texto.textContent = msg.texto || '';
+      div.appendChild(texto);
+
+      if (msg.autor === 'sistema') {
+        // Los mensajes nuevos guardan sus propios botones. En chats antiguos,
+        // que no tienen ese campo, se muestran los botones configurados actualmente.
+        const botones = Object.prototype.hasOwnProperty.call(msg, 'botones')
+          ? normalizarBotonesSoporte(msg.botones)
+          : mensajeInicialSoporteActual.botones;
+
+        if (botones.length) {
+          const acciones = document.createElement('div');
+          acciones.className = 'msg-acciones';
+          botones.forEach(boton => {
+            const enlace = document.createElement('a');
+            enlace.className = 'chat-wsp-btn';
+            enlace.href = boton.url;
+            enlace.textContent = boton.texto;
+            if (/^https?:\/\//i.test(boton.url)) {
+              enlace.target = '_blank';
+              enlace.rel = 'noopener noreferrer';
+            }
+            acciones.appendChild(enlace);
+          });
+          div.appendChild(acciones);
+        }
+      }
+
+      const hora = document.createElement('span');
+      hora.className = 'msg-hora';
+      hora.textContent = msg.hora || '';
+      div.appendChild(hora);
+    }
+
     function pintarMensaje(msg){
       const div = document.createElement('div');
-      div.className = 'msg ' + msg.autor;
-      let contenido = escapeHTML(msg.texto);
-      if (msg.autor === 'sistema') {
-        contenido += `<br><a class="chat-wsp-btn" href="${LINK_WSP}" target="_blank" rel="noopener">📲 Escribir por WhatsApp</a>`;
-      }
-      div.innerHTML = contenido + `<span class="msg-hora">${msg.hora || ''}</span>`;
+      div.className = 'msg ' + (['sistema', 'cliente', 'admin'].includes(msg.autor) ? msg.autor : 'sistema');
+      pintarContenidoMensaje(div, msg);
       mensajesEl.appendChild(div);
       mensajesEl.scrollTop = mensajesEl.scrollHeight;
 
@@ -1965,9 +2087,11 @@
         estado: 'abierto',
         creado: firebase.database.ServerValue.TIMESTAMP
       });
+      const bienvenidaSoporte = normalizarMensajeInicialSoporte(mensajeInicialSoporteActual);
       await db.ref('soporte_chats/' + chatId + '/mensajes').push({
         autor: 'sistema',
-        texto: 'Este chat de soporte no funciona las 24 horas: te respondemos apenas alguien esté disponible. Si necesitás una respuesta ahora mismo, escribinos por WhatsApp.',
+        texto: bienvenidaSoporte.texto,
+        botones: bienvenidaSoporte.botones,
         hora: horaActual()
       });
 
@@ -2309,11 +2433,10 @@
 
       function pintarMensajeAdmin(msg){
         const div = document.createElement('div');
-        div.className = 'msg ' + msg.autor;
-        div.innerHTML = escapeHTML(msg.texto) + `<span class="msg-hora">${msg.hora || ''}</span>`;
+        div.className = 'msg ' + (['sistema', 'cliente', 'admin'].includes(msg.autor) ? msg.autor : 'sistema');
+        pintarContenidoMensaje(div, msg);
         adminMensajesEl.appendChild(div);
         adminMensajesEl.scrollTop = adminMensajesEl.scrollHeight;
-
       }
 
       adminForm.addEventListener('submit', e => {
@@ -2364,6 +2487,34 @@
       const estadoGuardadoEl = document.getElementById('editor-estado-guardado');
       let datosSitioActuales = null;
       let editorYaCargado = false;
+      const editorSoporteMensajeEl = document.getElementById('editor-soporte-mensaje');
+      const editorSoporteBotonesEl = document.getElementById('editor-soporte-botones');
+
+      function crearFilaBotonSoporte(boton){
+        boton = boton || { texto: '', url: '' };
+        const fila = document.createElement('div');
+        fila.className = 'editor-soporte-boton';
+        fila.innerHTML = `
+          <div class="editor-campo">
+            <label>Texto del botón</label>
+            <input type="text" class="soporte-boton-texto" maxlength="70" placeholder="📲 Escribir por WhatsApp" value="${escapeHTML(boton.texto || '')}">
+          </div>
+          <div class="editor-campo">
+            <label>Enlace de destino</label>
+            <input type="url" class="soporte-boton-url" placeholder="https://..." value="${escapeHTML(boton.url || '')}">
+          </div>
+          <button type="button" class="editor-borrar-seccion soporte-boton-eliminar">Eliminar</button>
+        `;
+        fila.querySelector('.soporte-boton-eliminar').addEventListener('click', () => fila.remove());
+        return fila;
+      }
+
+      function cargarEditorBotonesSoporte(config){
+        const bienvenida = normalizarMensajeInicialSoporte(config);
+        editorSoporteMensajeEl.value = bienvenida.texto;
+        editorSoporteBotonesEl.innerHTML = '';
+        bienvenida.botones.forEach(boton => editorSoporteBotonesEl.appendChild(crearFilaBotonSoporte(boton)));
+      }
 
       function crearFilaSeccion(sec){
         sec = sec || { titulo: '', tipo: 'texto', contenido: '' };
@@ -2489,6 +2640,7 @@
           document.getElementById('editor-footer-derechos').value = datosSitioActuales.footerDerechos || '';
           document.getElementById('editor-footer-contacto').value = datosSitioActuales.footerContacto || '';
           document.getElementById('editor-footer-img').value = datosSitioActuales.footerImg || '';
+          cargarEditorBotonesSoporte(datosSitioActuales.mensajeInicialSoporte);
 
           editorSeccionesEl.innerHTML = '';
           (datosSitioActuales.secciones || []).forEach(sec => {
@@ -2514,6 +2666,10 @@
         document.getElementById('editor-paginas').appendChild(crearFilaPagina());
       });
 
+      document.getElementById('editor-soporte-agregar-boton').addEventListener('click', () => {
+        editorSoporteBotonesEl.appendChild(crearFilaBotonSoporte());
+      });
+
       document.getElementById('editor-guardar').addEventListener('click', () => {
         const secciones = Array.from(editorSeccionesEl.querySelectorAll('.editor-seccion')).map(leerSeccionEditor);
 
@@ -2531,7 +2687,29 @@
           return { titulo, ancla: intento, secciones: seccionesPagina };
         });
 
+        const botonesSoporte = [];
+        const filasBotonesSoporte = Array.from(editorSoporteBotonesEl.querySelectorAll('.editor-soporte-boton'));
+        for (let i = 0; i < filasBotonesSoporte.length; i++) {
+          const fila = filasBotonesSoporte[i];
+          const textoBoton = fila.querySelector('.soporte-boton-texto').value.trim();
+          const urlOriginal = fila.querySelector('.soporte-boton-url').value.trim();
+          if (!textoBoton && !urlOriginal) continue;
+          const urlBoton = urlSoporteValida(urlOriginal);
+          if (!textoBoton || !urlBoton) {
+            estadoGuardadoEl.style.color = '#ef4444';
+            estadoGuardadoEl.textContent = `Revisá el botón ${i + 1}: completá el texto y un enlace válido (http, https, mailto o tel).`;
+            return;
+          }
+          botonesSoporte.push({ texto: textoBoton, url: urlBoton });
+        }
+
+        const mensajeInicialSoporte = {
+          texto: editorSoporteMensajeEl.value,
+          botones: botonesSoporte
+        };
+
         const nuevosDatos = {
+          mensajeInicialSoporte,
           precioMonto: document.getElementById('editor-precio-monto').value.trim(),
           precioPeriodo: document.getElementById('editor-precio-periodo').value.trim(),
           intro: document.getElementById('editor-intro').value,
