@@ -924,9 +924,22 @@
     border-left: 2px solid var(--border);
   }
 
-  /* Espacio entre los bloques de páginas dinámicas, en la web pública */
+  /* Cada opción del menú es una pantalla independiente. */
+  .vista-pagina{
+    display: none;
+  }
+
+  .vista-pagina.activa{
+    display: block;
+  }
+
   .bloque-pagina{
-    margin-top: 40px;
+    margin-top: 0;
+  }
+
+  header nav a.activo{
+    color: var(--accent);
+    border-bottom-color: var(--accent);
   }
 </style>
 </head>
@@ -940,9 +953,9 @@
       <span class="marca-texto">Servicio De TV</span>
     </div>
     <nav>
+      <a href="#inicio" id="abrir-inicio" data-ruta="inicio">Inicio</a>
       <a href="#" id="abrir-soporte">Soporte</a>
-      <!-- Los demás links del menú (Contratar Servicio, Servicio Completo, y los
-           que agregue el admin) se insertan acá dinámicamente, ver renderNavYPaginas() -->
+      <!-- Las demás páginas se agregan desde el panel de administración. -->
     </nav>
   </header>
 
@@ -951,8 +964,9 @@
   </div>
 
   <div class="contenido">
-    <h2>Mas Informacion</h2>
-    <div class="caja-info" id="caja-info">
+    <section id="inicio" class="vista-pagina activa" aria-label="Página de inicio">
+      <h2>Mas Informacion</h2>
+      <div class="caja-info" id="caja-info">
       <!-- Este contenido se reemplaza en tiempo real con lo que haya guardado
            el panel admin en Firebase (ver renderSitio() más abajo). Lo que
            está escrito acá abajo es solo el contenido inicial / de respaldo. -->
@@ -1077,10 +1091,10 @@
         </ol>
       </div>
 
-    </div>
+      </div>
+    </section>
 
-    <!-- Páginas del menú (Contratar Servicio, Servicio Completo, y las que
-         agregue el admin). Cada una se dibuja acá con su propio <h2>+caja. -->
+    <!-- Cada página creada desde el panel ocupa esta zona, pero se muestra sola. -->
     <div id="paginas-dinamicas"></div>
 
     <div class="caja-chica">
@@ -1239,10 +1253,10 @@
           <div class="editor-campo">
             <label>Páginas del menú de arriba</label>
             <p class="editor-ayuda">
-              Cada página que agregues acá aparece como un link más en el menú (al lado de "Soporte",
-              como "Contratar Servicio" o "Servicio Completo"). Al hacer clic, lleva directo a su
-              propio bloque de contenido más abajo en la página. "Soporte" no se edita acá porque
-              abre el chat, no una página.
+              Cada página que agregues acá aparece como una opción independiente en el menú,
+              por ejemplo "Contratar Servicio" o "Servicio Completo". Al hacer clic, se abre
+              solamente esa página y se ocultan Inicio y las demás páginas. "Soporte" no se edita
+              acá porque abre el chat, no una página.
             </p>
           </div>
 
@@ -1475,30 +1489,95 @@
       renderNavYPaginas(datos);
     }
 
-    // Dibuja los links extra del menú (al lado de "Soporte") y el contenido
-    // de cada página, a partir de datos.paginas.
+    // Cambia la pantalla visible sin recargar el sitio.
+    // La página Inicio y cada página del menú se muestran de a una.
+    function mostrarPagina(ruta, desplazar = false){
+      const rutaLimpia = slugify((ruta || 'inicio').toString().replace(/^#/, ''));
+      const candidatas = Array.from(document.querySelectorAll('.vista-pagina'));
+      let paginaActiva = candidatas.find(p => p.id === rutaLimpia);
+
+      // Si el enlace ya no existe (por ejemplo, porque se borró desde el panel),
+      // volvemos a Inicio en lugar de dejar una pantalla vacía.
+      if (!paginaActiva) paginaActiva = document.getElementById('inicio');
+
+      candidatas.forEach(pagina => {
+        pagina.classList.toggle('activa', pagina === paginaActiva);
+      });
+
+      const banner = document.querySelector('.banner');
+      if (banner) banner.classList.toggle('oculto', !paginaActiva || paginaActiva.id !== 'inicio');
+
+      document.querySelectorAll('header nav a[data-ruta]').forEach(enlace => {
+        const activa = !!paginaActiva && enlace.dataset.ruta === paginaActiva.id;
+        enlace.classList.toggle('activo', activa);
+        if (activa) enlace.setAttribute('aria-current', 'page');
+        else enlace.removeAttribute('aria-current');
+      });
+
+      if (desplazar) window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function navegarA(ruta){
+      const destino = slugify(ruta || 'inicio');
+      const hash = '#' + destino;
+      if (window.location.hash !== hash) {
+        window.location.hash = hash;
+      } else {
+        mostrarPagina(destino, true);
+      }
+    }
+
+    // También permite usar atrás/adelante del navegador y abrir enlaces directos.
+    window.addEventListener('hashchange', () => {
+      mostrarPagina(decodeURIComponent(window.location.hash.slice(1) || 'inicio'), true);
+    });
+
+    document.querySelector('header nav').addEventListener('click', function(e){
+      const enlace = e.target.closest('a[data-ruta]');
+      if (!enlace) return;
+      e.preventDefault();
+      navegarA(enlace.dataset.ruta);
+    });
+
+    // Dibuja los enlaces y las pantallas independientes desde datos.paginas.
     function renderNavYPaginas(datos){
       const nav = document.querySelector('header nav');
       nav.querySelectorAll('.nav-dinamico').forEach(a => a.remove());
 
       const paginas = Array.isArray(datos.paginas) ? datos.paginas : [];
+      const rutasUsadas = new Set(['inicio']);
+      const paginasPreparadas = paginas.map((pagina, indice) => {
+        const base = slugify(pagina.ancla || pagina.titulo || ('pagina-' + (indice + 1)));
+        let ruta = base;
+        let numero = 2;
+        while (rutasUsadas.has(ruta)) {
+          ruta = base + '-' + numero;
+          numero++;
+        }
+        rutasUsadas.add(ruta);
+        return { ...pagina, ruta };
+      });
 
-      paginas.forEach(pagina => {
+      paginasPreparadas.forEach(pagina => {
         const a = document.createElement('a');
-        a.href = '#' + (pagina.ancla || slugify(pagina.titulo));
-        a.textContent = pagina.titulo || '';
+        a.href = '#' + pagina.ruta;
+        a.textContent = pagina.titulo || 'Página';
         a.className = 'nav-dinamico';
+        a.dataset.ruta = pagina.ruta;
         nav.appendChild(a);
       });
 
       const contenedor = document.getElementById('paginas-dinamicas');
-      contenedor.innerHTML = paginas.map(pagina => {
+      contenedor.innerHTML = paginasPreparadas.map(pagina => {
         const secciones = Array.isArray(pagina.secciones) ? pagina.secciones : [];
-        return `<div class="bloque-pagina" id="${escapeHTML(pagina.ancla || slugify(pagina.titulo))}">` +
+        return `<section class="vista-pagina bloque-pagina" id="${escapeHTML(pagina.ruta)}" aria-label="${escapeHTML(pagina.titulo || 'Página')}">` +
           `<h2>${escapeHTML(pagina.titulo || '')}</h2>` +
           `<div class="caja-info">${secciones.map(renderSeccionHTML).join('')}</div>` +
-        `</div>`;
+        `</section>`;
       }).join('');
+
+      // Conserva la pantalla actual al actualizar los datos desde Firebase.
+      mostrarPagina(decodeURIComponent(window.location.hash.slice(1) || 'inicio'));
     }
 
     // Si todavía no hay nada guardado en Firebase, se siembra con el
