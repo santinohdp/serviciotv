@@ -941,6 +941,21 @@
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+
+  /* Visor seguro para secciones con HTML, CSS y JavaScript personalizados. */
+  .bloque-html .visor-html{
+    display: block;
+    width: 100%;
+    height: 360px;
+    min-height: 180px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .bloque-html .visor-html-codigo{
+    display: none;
+  }
 </style>
 </head>
 <body>
@@ -1271,7 +1286,8 @@
               • <strong>Lista</strong>: un ítem por línea.<br>
               • <strong>Lista numerada (pasos)</strong>: un paso por línea.<br>
               • <strong>Grilla de categorías</strong>: una categoría por línea, con el formato
-              <code>Título: ítem 1 | ítem 2 | ítem 3</code>
+              <code>Título: ítem 1 | ítem 2 | ítem 3</code><br>
+              • <strong>HTML / Script</strong>: pegá código HTML, CSS y JavaScript para mostrar su resultado visual.
             </p>
           </div>
 
@@ -1443,6 +1459,15 @@
       const titulo = `<h3>${escapeHTML(sec.titulo || '')}</h3>`;
       const lineas = (sec.contenido || '').split('\n').map(l => l.trim()).filter(Boolean);
 
+      // El código se guarda como texto y se ejecuta dentro de un iframe aislado.
+      // Así puede mostrar HTML/CSS/JS sin acceder al DOM, Firebase o almacenamiento del sitio.
+      if (sec.tipo === 'html') {
+        return `<div class="bloque-info bloque-html">${titulo}` +
+          `<iframe class="visor-html" title="${escapeHTML(sec.titulo || 'Contenido HTML')}" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>` +
+          `<template class="visor-html-codigo">${escapeHTML(sec.contenido || '')}</template>` +
+        `</div>`;
+      }
+
       if (sec.tipo === 'lista') {
         return `<div class="bloque-info">${titulo}<ul class="lista-simple">${
           lineas.map(l => `<li>${escapeHTML(l)}</li>`).join('')
@@ -1470,6 +1495,52 @@
       return `<div class="bloque-info">${titulo}<p>${escapeHTML(sec.contenido || '')}</p></div>`;
     }
 
+    // Prepara los visores después de insertar las secciones en el documento.
+    // Los scripts pegados por el administrador se ejecutan únicamente dentro
+    // de un iframe sandbox, sin permiso para acceder al sitio principal.
+    function activarVisoresHTML(contenedor){
+      if (!contenedor) return;
+
+      contenedor.querySelectorAll('iframe.visor-html:not([data-preparado])').forEach(iframe => {
+        const plantilla = iframe.nextElementSibling;
+        const codigo = plantilla ? plantilla.content.textContent : '';
+        const scriptAltura = '<scr' + 'ipt>(function(){' +
+          'function enviarAltura(){' +
+            'var alto=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);' +
+            'parent.postMessage({type:"tv-html-preview-height",height:alto},"*");' +
+          '}' +
+          'window.addEventListener("load",enviarAltura);' +
+          'if("ResizeObserver" in window){new ResizeObserver(enviarAltura).observe(document.documentElement);}' +
+          'setTimeout(enviarAltura,80);setTimeout(enviarAltura,350);setTimeout(enviarAltura,1000);' +
+        '})();</scr' + 'ipt>';
+
+        let documento = codigo;
+        if (/<\/body\s*>/i.test(documento)) {
+          documento = documento.replace(/<\/body\s*>/i, scriptAltura + '</body>');
+        } else {
+          documento += scriptAltura;
+        }
+
+        iframe.dataset.preparado = '1';
+        iframe.srcdoc = documento;
+      });
+    }
+
+    // Acepta únicamente mensajes de altura enviados por nuestros propios visores.
+    window.addEventListener('message', function(event){
+      const datos = event.data;
+      if (!datos || datos.type !== 'tv-html-preview-height') return;
+
+      const iframe = Array.from(document.querySelectorAll('iframe.visor-html'))
+        .find(frame => frame.contentWindow === event.source);
+      if (!iframe) return;
+
+      const alto = Number(datos.height);
+      if (Number.isFinite(alto)) {
+        iframe.style.height = Math.max(180, Math.min(alto + 24, 5000)) + 'px';
+      }
+    });
+
     function renderSitio(datos){
       if (!datos) return;
 
@@ -1486,6 +1557,7 @@
         `<div class="precio-destacado"><span class="monto">${escapeHTML(datos.precioMonto || '')}</span><span class="periodo">${escapeHTML(datos.precioPeriodo || '')}</span></div>` +
         secciones.map(renderSeccionHTML).join('');
 
+      activarVisoresHTML(cajaInfo);
       renderNavYPaginas(datos);
     }
 
@@ -1575,6 +1647,8 @@
           `<div class="caja-info">${secciones.map(renderSeccionHTML).join('')}</div>` +
         `</section>`;
       }).join('');
+
+      activarVisoresHTML(contenedor);
 
       // Conserva la pantalla actual al actualizar los datos desde Firebase.
       mostrarPagina(decodeURIComponent(window.location.hash.slice(1) || 'inicio'));
@@ -2073,14 +2147,32 @@
               <option value="lista">Lista</option>
               <option value="lista_numerada">Lista numerada (pasos)</option>
               <option value="grid">Grilla de categorías</option>
+              <option value="html">HTML / Script (mostrar resultado)</option>
             </select>
           </div>
           <div class="editor-campo">
-            <label>Contenido</label>
+            <label class="sec-contenido-label">Contenido</label>
             <textarea class="sec-contenido" rows="4">${escapeHTML(sec.contenido || '')}</textarea>
+            <p class="editor-ayuda sec-html-ayuda oculto">Pegá aquí tu código HTML. También podés incluir CSS dentro de &lt;style&gt; y JavaScript dentro de &lt;script&gt;. El resultado se mostrará en un visor aislado.</p>
           </div>
         `;
-        div.querySelector('.sec-tipo').value = sec.tipo || 'texto';
+        const tipoSelect = div.querySelector('.sec-tipo');
+        const contenidoLabel = div.querySelector('.sec-contenido-label');
+        const contenidoTextarea = div.querySelector('.sec-contenido');
+        const ayudaHTML = div.querySelector('.sec-html-ayuda');
+
+        tipoSelect.value = sec.tipo || 'texto';
+        function actualizarTipoEditor(){
+          const esHTML = tipoSelect.value === 'html';
+          contenidoLabel.textContent = esHTML ? 'Código HTML / CSS / JavaScript' : 'Contenido';
+          contenidoTextarea.rows = esHTML ? 12 : 4;
+          contenidoTextarea.placeholder = esHTML
+            ? '<div>Mi contenido</div>\n<style>...</style>\n<scr' + 'ipt>...</scr' + 'ipt>'
+            : '';
+          ayudaHTML.classList.toggle('oculto', !esHTML);
+        }
+        tipoSelect.addEventListener('change', actualizarTipoEditor);
+        actualizarTipoEditor();
         div.querySelector('.editor-borrar-seccion').addEventListener('click', () => div.remove());
         return div;
       }
