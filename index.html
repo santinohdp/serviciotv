@@ -95,22 +95,6 @@
     border-bottom: 2px solid var(--accent);
   }
 
-  /* ---------- BANNER ---------- */
-  .banner{
-    max-width: 1100px;
-    margin: 32px auto 0;
-    padding: 0 24px;
-  }
-
-  .banner img{
-    width: 100%;
-    height: 320px;
-    object-fit: cover;
-    border-radius: 20px;
-    display:block;
-    border: 1px solid var(--border);
-  }
-
   /* ---------- MAS INFORMACION ---------- */
   .contenido{
     max-width: 1100px;
@@ -309,9 +293,6 @@
       gap: 18px;
       flex-wrap: wrap;
       justify-content: center;
-    }
-    .banner img{
-      height: 200px;
     }
     .caja-chica{
       flex-direction: column;
@@ -956,6 +937,106 @@
   .bloque-html .visor-html-codigo{
     display: none;
   }
+
+  /* Sección Banner multimedia: acepta imagen, GIF o video por URL. */
+  .bloque-banner-multimedia{
+    width: 100%;
+    margin: 8px 0 28px;
+  }
+  .bloque-banner-multimedia h3{
+    font-family: 'Orbitron', sans-serif;
+    color: var(--text);
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+  }
+  .banner-multimedia-marco{
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #081321;
+  }
+  .banner-multimedia-marco img,
+  .banner-multimedia-marco video{
+    display: block;
+    width: 100%;
+    max-height: 480px;
+    object-fit: cover;
+  }
+
+  /* Avisos en pantalla: solo se habilitan después del acceso de administrador. */
+  .admin-notificaciones{
+    position: fixed;
+    top: 88px;
+    right: 20px;
+    z-index: 1500;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(370px, calc(100vw - 28px));
+    pointer-events: none;
+  }
+  .admin-aviso{
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    background: linear-gradient(145deg, #172638, #101a27);
+    border: 1px solid rgba(62,198,255,.55);
+    border-left: 4px solid var(--accent);
+    border-radius: 13px;
+    box-shadow: 0 14px 36px rgba(0,0,0,.42);
+    pointer-events: auto;
+    animation: adminAvisoEntra .24s ease-out;
+  }
+  .admin-aviso-icono{
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(62,198,255,.13);
+    color: var(--accent);
+    font-size: 17px;
+  }
+  .admin-aviso-contenido{ min-width: 0; flex: 1; }
+  .admin-aviso-titulo{
+    display: block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: .72rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .admin-aviso-texto{
+    display: block;
+    color: var(--text);
+    font-size: .9rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .admin-aviso-hora{
+    display: block;
+    margin-top: 5px;
+    color: var(--text-dim);
+    font-size: .72rem;
+  }
+  .admin-aviso-cerrar{
+    border: 0;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 1.15rem;
+    cursor: pointer;
+    padding: 0 2px;
+  }
+  @keyframes adminAvisoEntra{
+    from{ opacity:0; transform:translateY(-8px) translateX(10px); }
+    to{ opacity:1; transform:translateY(0) translateX(0); }
+  }
+  @media(max-width:640px){
+    .admin-notificaciones{ top: 76px; right: 10px; width: calc(100vw - 20px); }
+  }
 </style>
 </head>
 <body>
@@ -973,12 +1054,10 @@
       <!-- Las demás páginas se agregan desde el panel de administración. -->
     </nav>
   </header>
+<!-- Los avisos se activan únicamente en ?admin=1 y después de iniciar sesión. -->
+<div id="admin-notificaciones" class="admin-notificaciones oculto" aria-live="polite" aria-atomic="false"></div>
 
-  <div class="banner">
-    <img src="" alt="Banner principal" id="banner-img">
-  </div>
-
-  <div class="contenido">
+<div class="contenido">
     <section id="inicio" class="vista-pagina activa" aria-label="Página de inicio">
       <div class="caja-info" id="caja-info">
       <!-- Este contenido se reemplaza en tiempo real con lo que haya guardado
@@ -1242,13 +1321,7 @@
 
         <!-- Vista: editor del sitio -->
         <div class="editor-sitio oculto" id="editor-sitio">
-
-          <div class="editor-campo">
-            <label>URL de la imagen del banner</label>
-            <input type="text" id="editor-banner" placeholder="https://...">
-          </div>
-
-          <div class="editor-fila-2">
+<div class="editor-fila-2">
             <div class="editor-campo">
               <label>Precio (monto)</label>
               <input type="text" id="editor-precio-monto" placeholder="$5.000">
@@ -1286,7 +1359,8 @@
               • <strong>Lista numerada (pasos)</strong>: un paso por línea.<br>
               • <strong>Grilla de categorías</strong>: una categoría por línea, con el formato
               <code>Título: ítem 1 | ítem 2 | ítem 3</code><br>
-              • <strong>HTML / Script</strong>: pegá código HTML, CSS y JavaScript para mostrar su resultado visual.
+              • <strong>HTML / Script</strong>: pegá código HTML, CSS y JavaScript para mostrar su resultado visual.<br>
+              • <strong>Banner multimedia</strong>: agregá una foto, GIF o video mediante un enlace.
             </p>
           </div>
 
@@ -1372,21 +1446,36 @@
 
     // ---- Sonido de notificación (beep corto, generado en el navegador: no
     // depende de ningún archivo de audio externo) ----
+    let contextoAudioNotificaciones = null;
+
+    function prepararAudioNotificaciones(){
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!contextoAudioNotificaciones) contextoAudioNotificaciones = new AudioCtx();
+        if (contextoAudioNotificaciones.state === 'suspended') {
+          contextoAudioNotificaciones.resume().catch(() => {});
+        }
+      } catch (err) { /* audio no disponible en este navegador */ }
+    }
+
     function sonidoNotificacion(){
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        prepararAudioNotificaciones();
+        const ctx = contextoAudioNotificaciones;
+        if (!ctx || ctx.state !== 'running') return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(880, ctx.currentTime);
         osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+        gain.gain.exponentialRampToValueAtTime(0.16, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.38);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + 0.35);
+        osc.stop(ctx.currentTime + 0.38);
       } catch (err) { /* el navegador puede bloquear audio sin interacción previa */ }
     }
 
@@ -1400,7 +1489,6 @@
     // Contenido inicial: el mismo que ya tenía la página escrito a mano.
     // Se usa solo la primera vez, si todavía no hay nada guardado en Firebase.
     const SITIO_POR_DEFECTO = {
-      banner: '',
       intro: 'Disfrutá de películas, series, canales en vivo, deportes, contenido infantil, música, noticias y mucho más, todo en un solo lugar y pensado para toda la familia.',
       precioMonto: '$5.000',
       precioPeriodo: 'por mes · hasta 4 dispositivos en simultáneo',
@@ -1457,6 +1545,24 @@
     function renderSeccionHTML(sec){
       const titulo = `<h3>${escapeHTML(sec.titulo || '')}</h3>`;
       const lineas = (sec.contenido || '').split('\n').map(l => l.trim()).filter(Boolean);
+
+      // Banner multimedia: el formato se elige desde el editor y el contenido guarda la URL.
+      if (sec.tipo === 'banner') {
+        const formato = ['imagen', 'gif', 'video'].includes(sec.formato) ? sec.formato : 'imagen';
+        const url = (sec.contenido || '').trim();
+        if (!url) return `<div class="bloque-info bloque-banner-multimedia">${sec.titulo ? titulo : ''}<p>Configurá la URL del banner desde Editar sitio.</p></div>`;
+        // Solo se admiten enlaces web para evitar protocolos ejecutables en atributos multimedia.
+        let urlSegura = '';
+        try {
+          const parsed = new URL(url, window.location.href);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') urlSegura = escapeHTML(parsed.href);
+        } catch (_) {}
+        if (!urlSegura) return `<div class="bloque-info bloque-banner-multimedia">${sec.titulo ? titulo : ''}<p>La URL del banner no es válida. Usá un enlace http o https.</p></div>`;
+        const medio = formato === 'video'
+          ? `<video autoplay muted loop playsinline controls preload="metadata"><source src="${urlSegura}"></video>`
+          : `<img src="${urlSegura}" alt="${escapeHTML(sec.titulo || 'Banner')}" loading="lazy">`;
+        return `<div class="bloque-info bloque-banner-multimedia">${sec.titulo ? titulo : ''}<div class="banner-multimedia-marco">${medio}</div></div>`;
+      }
 
       // El código se guarda como texto y se ejecuta dentro de un iframe aislado.
       // Así puede mostrar HTML/CSS/JS sin acceder al DOM, Firebase o almacenamiento del sitio.
@@ -1564,7 +1670,6 @@
     function renderSitio(datos){
       if (!datos) return;
 
-      document.getElementById('banner-img').src = datos.banner || '';
       document.getElementById('footer-img').src = datos.footerImg || '';
       document.getElementById('footer-derechos').textContent = datos.footerDerechos || '';
       document.getElementById('footer-contacto').textContent = datos.footerContacto || '';
@@ -1596,8 +1701,6 @@
         pagina.classList.toggle('activa', pagina === paginaActiva);
       });
 
-      const banner = document.querySelector('.banner');
-      if (banner) banner.classList.toggle('oculto', !paginaActiva || paginaActiva.id !== 'inicio');
 
       document.querySelectorAll('header nav a[data-ruta]').forEach(enlace => {
         const activa = !!paginaActiva && enlace.dataset.ruta === paginaActiva.id;
@@ -1970,6 +2073,121 @@
       let timeoutEscribiendoAdmin = null;
       const adminEscribiendoEl = document.getElementById('admin-escribiendo');
 
+      // ---- Avisos globales del soporte (solo después del login admin) ----
+      const adminNotificacionesEl = document.getElementById('admin-notificaciones');
+      let avisosAdminIniciados = false;
+      const refsAvisosMensajes = new Map();
+
+      function mostrarAvisoAdmin(titulo, mensaje){
+        if (sessionStorage.getItem('soporte_admin_ok') !== '1' || !adminNotificacionesEl) return;
+        adminNotificacionesEl.classList.remove('oculto');
+        const aviso = document.createElement('div');
+        aviso.className = 'admin-aviso';
+        const icono = document.createElement('span');
+        icono.className = 'admin-aviso-icono';
+        icono.textContent = '✉';
+        const contenido = document.createElement('div');
+        contenido.className = 'admin-aviso-contenido';
+        const tituloEl = document.createElement('strong');
+        tituloEl.className = 'admin-aviso-titulo';
+        tituloEl.textContent = titulo;
+        const textoEl = document.createElement('span');
+        textoEl.className = 'admin-aviso-texto';
+        textoEl.textContent = mensaje;
+        const horaEl = document.createElement('span');
+        horaEl.className = 'admin-aviso-hora';
+        horaEl.textContent = horaActual();
+        contenido.append(tituloEl, textoEl, horaEl);
+        const cerrar = document.createElement('button');
+        cerrar.className = 'admin-aviso-cerrar';
+        cerrar.type = 'button';
+        cerrar.setAttribute('aria-label', 'Cerrar aviso');
+        cerrar.textContent = '×';
+        cerrar.addEventListener('click', () => aviso.remove());
+        aviso.append(icono, contenido, cerrar);
+        adminNotificacionesEl.prepend(aviso);
+        sonidoNotificacion();
+        while (adminNotificacionesEl.children.length > 4) {
+          adminNotificacionesEl.lastElementChild.remove();
+        }
+        setTimeout(() => aviso.remove(), 6500);
+      }
+
+      function vigilarMensajesDeChat(chatId, datosChat){
+        if (refsAvisosMensajes.has(chatId)) return;
+        const refMensajesAvisos = db.ref('soporte_chats/' + chatId + '/mensajes');
+        refsAvisosMensajes.set(chatId, refMensajesAvisos);
+        let inicializado = false;
+        const mensajesPendientes = [];
+        refMensajesAvisos.on('child_added', snap => {
+          if (!inicializado) {
+            mensajesPendientes.push(snap);
+            return;
+          }
+          const mensaje = snap.val() || {};
+          if (mensaje.autor === 'cliente') {
+            const nombre = datosChat.usuario || 'un cliente';
+            const vistaPrevia = (mensaje.texto || 'Envió un mensaje').toString().slice(0, 110);
+            mostrarAvisoAdmin('Nuevo mensaje de ' + nombre, vistaPrevia);
+          }
+        });
+        refMensajesAvisos.once('value').then(snap => {
+          const iniciales = new Set(Object.keys(snap.val() || {}));
+          inicializado = true;
+          mensajesPendientes.forEach(msgSnap => {
+            if (iniciales.has(msgSnap.key)) return;
+            const mensaje = msgSnap.val() || {};
+            if (mensaje.autor === 'cliente') {
+              const nombre = datosChat.usuario || 'un cliente';
+              mostrarAvisoAdmin('Nuevo mensaje de ' + nombre, (mensaje.texto || 'Envió un mensaje').toString().slice(0, 110));
+            }
+          });
+        }).catch(err => console.warn('No se pudo preparar el aviso del chat:', err));
+      }
+
+      function iniciarAvisosAdmin(){
+        if (avisosAdminIniciados || sessionStorage.getItem('soporte_admin_ok') !== '1') return;
+        avisosAdminIniciados = true;
+        const refTodosLosChats = db.ref('soporte_chats');
+        let listadoInicializado = false;
+        const chatsPendientes = [];
+
+        function procesarNuevoChat(snap, avisar){
+          const chat = snap.val() || {};
+          vigilarMensajesDeChat(snap.key, chat);
+          if (avisar) {
+            mostrarAvisoAdmin('Nuevo cliente', (chat.usuario || 'Un cliente') + ' inició una conversación de soporte.');
+          }
+        }
+
+        refTodosLosChats.on('child_added', snap => {
+          if (!listadoInicializado) {
+            chatsPendientes.push(snap);
+            return;
+          }
+          procesarNuevoChat(snap, true);
+        });
+
+        refTodosLosChats.on('child_removed', snap => {
+          const ref = refsAvisosMensajes.get(snap.key);
+          if (ref) ref.off();
+          refsAvisosMensajes.delete(snap.key);
+        });
+
+        refTodosLosChats.once('value').then(snap => {
+          const chatsIniciales = snap.val() || {};
+          Object.entries(chatsIniciales).forEach(([id, chat]) => {
+            vigilarMensajesDeChat(id, chat || {});
+          });
+          listadoInicializado = true;
+          chatsPendientes.forEach(chatSnap => {
+            if (!Object.prototype.hasOwnProperty.call(chatsIniciales, chatSnap.key)) {
+              procesarNuevoChat(chatSnap, true);
+            }
+          });
+        }).catch(err => console.warn('No se pudo iniciar el monitoreo de soporte:', err));
+      }
+
       // ---- Tabs del panel: Conversaciones / Editar sitio ----
       const tabSoporte = document.getElementById('admin-tab-soporte');
       const tabEditar = document.getElementById('admin-tab-editar');
@@ -1992,6 +2210,7 @@
       });
 
       lanzador.addEventListener('click', () => {
+        prepararAudioNotificaciones();
         adminOverlay.classList.add('abierto');
         if (sessionStorage.getItem('soporte_admin_ok') === '1') {
           mostrarBandejaAdmin();
@@ -2002,6 +2221,7 @@
 
       adminFormLogin.addEventListener('submit', function(e){
         e.preventDefault();
+        prepararAudioNotificaciones();
         const u = document.getElementById('admin-login-usuario').value.trim();
         const c = document.getElementById('admin-login-clave').value;
         if (u === ADMIN_USUARIO && c === ADMIN_CLAVE) {
@@ -2016,6 +2236,7 @@
       function mostrarBandejaAdmin(){
         adminVistaLogin.classList.add('oculto');
         document.getElementById('admin-shell').classList.remove('oculto');
+        iniciarAvisosAdmin();
         if (!listaCargada) { cargarLista(); listaCargada = true; }
       }
 
@@ -2093,9 +2314,6 @@
         adminMensajesEl.appendChild(div);
         adminMensajesEl.scrollTop = adminMensajesEl.scrollHeight;
 
-        if (adminSincronizado && msg.autor === 'cliente') {
-          sonidoNotificacion();
-        }
       }
 
       adminForm.addEventListener('submit', e => {
@@ -2157,7 +2375,7 @@
             <button type="button" class="editor-borrar-seccion">Borrar sección</button>
           </div>
           <div class="editor-campo">
-            <label>Título</label>
+            <label>Título (opcional para banners)</label>
             <input type="text" class="sec-titulo" value="${escapeHTML(sec.titulo || '')}">
           </div>
           <div class="editor-campo">
@@ -2168,22 +2386,41 @@
               <option value="lista_numerada">Lista numerada (pasos)</option>
               <option value="grid">Grilla de categorías</option>
               <option value="html">HTML / Script (mostrar resultado)</option>
+              <option value="banner">Banner multimedia (foto / GIF / video)</option>
             </select>
           </div>
-          <div class="editor-campo">
+          <div class="editor-campo sec-contenido-normal">
             <label class="sec-contenido-label">Contenido</label>
-            <textarea class="sec-contenido" rows="4">${escapeHTML(sec.contenido || '')}</textarea>
+            <textarea class="sec-contenido" rows="4">${escapeHTML(sec.tipo === 'banner' ? '' : (sec.contenido || ''))}</textarea>
             <p class="editor-ayuda sec-html-ayuda oculto">Pegá aquí tu código HTML. También podés incluir CSS dentro de &lt;style&gt; y JavaScript dentro de &lt;script&gt;. El resultado se mostrará en un visor aislado.</p>
+          </div>
+          <div class="editor-campo sec-banner-controles oculto">
+            <label>Tipo de archivo multimedia</label>
+            <select class="sec-banner-formato">
+              <option value="imagen">Foto / imagen</option>
+              <option value="gif">GIF animado</option>
+              <option value="video">Video (MP4 / WebM)</option>
+            </select>
+            <label>Enlace directo del archivo</label>
+            <input type="url" class="sec-banner-url" placeholder="https://ejemplo.com/mi-banner.mp4" value="${escapeHTML(sec.tipo === 'banner' ? (sec.contenido || '') : '')}">
+            <p class="editor-ayuda">Pegá un enlace público que termine en una imagen, GIF o video. Para video se recomienda MP4 o WebM; se reproduce silenciado y en bucle.</p>
           </div>
         `;
         const tipoSelect = div.querySelector('.sec-tipo');
         const contenidoLabel = div.querySelector('.sec-contenido-label');
         const contenidoTextarea = div.querySelector('.sec-contenido');
         const ayudaHTML = div.querySelector('.sec-html-ayuda');
+        const campoNormal = div.querySelector('.sec-contenido-normal');
+        const controlesBanner = div.querySelector('.sec-banner-controles');
+        const formatoBanner = div.querySelector('.sec-banner-formato');
 
         tipoSelect.value = sec.tipo || 'texto';
+        formatoBanner.value = sec.formato || 'imagen';
         function actualizarTipoEditor(){
           const esHTML = tipoSelect.value === 'html';
+          const esBanner = tipoSelect.value === 'banner';
+          campoNormal.classList.toggle('oculto', esBanner);
+          controlesBanner.classList.toggle('oculto', !esBanner);
           contenidoLabel.textContent = esHTML ? 'Código HTML / CSS / JavaScript' : 'Contenido';
           contenidoTextarea.rows = esHTML ? 12 : 4;
           contenidoTextarea.placeholder = esHTML
@@ -2195,6 +2432,19 @@
         actualizarTipoEditor();
         div.querySelector('.editor-borrar-seccion').addEventListener('click', () => div.remove());
         return div;
+      }
+
+      function leerSeccionEditor(div){
+        const tipo = div.querySelector('.sec-tipo').value;
+        const seccion = {
+          titulo: div.querySelector('.sec-titulo').value.trim(),
+          tipo,
+          contenido: tipo === 'banner'
+            ? div.querySelector('.sec-banner-url').value.trim()
+            : div.querySelector('.sec-contenido').value
+        };
+        if (tipo === 'banner') seccion.formato = div.querySelector('.sec-banner-formato').value;
+        return seccion;
       }
 
       // Fila para una página del menú (ej. "Contratar Servicio"), con su
@@ -2233,7 +2483,6 @@
         REF_SITIO.once('value').then(snap => {
           datosSitioActuales = snap.val() || SITIO_POR_DEFECTO;
 
-          document.getElementById('editor-banner').value = datosSitioActuales.banner || '';
           document.getElementById('editor-precio-monto').value = datosSitioActuales.precioMonto || '';
           document.getElementById('editor-precio-periodo').value = datosSitioActuales.precioPeriodo || '';
           document.getElementById('editor-intro').value = datosSitioActuales.intro || '';
@@ -2266,11 +2515,7 @@
       });
 
       document.getElementById('editor-guardar').addEventListener('click', () => {
-        const secciones = Array.from(editorSeccionesEl.querySelectorAll('.editor-seccion')).map(div => ({
-          titulo: div.querySelector('.sec-titulo').value.trim(),
-          tipo: div.querySelector('.sec-tipo').value,
-          contenido: div.querySelector('.sec-contenido').value
-        }));
+        const secciones = Array.from(editorSeccionesEl.querySelectorAll('.editor-seccion')).map(leerSeccionEditor);
 
         const anclasUsadas = new Set();
         const paginas = Array.from(document.querySelectorAll('#editor-paginas > .editor-pagina')).map(div => {
@@ -2281,17 +2526,12 @@
           while (anclasUsadas.has(intento)) { intento = ancla + '-' + n; n++; }
           anclasUsadas.add(intento);
 
-          const seccionesPagina = Array.from(div.querySelectorAll('.pag-secciones-interna > .editor-seccion')).map(s => ({
-            titulo: s.querySelector('.sec-titulo').value.trim(),
-            tipo: s.querySelector('.sec-tipo').value,
-            contenido: s.querySelector('.sec-contenido').value
-          }));
+          const seccionesPagina = Array.from(div.querySelectorAll('.pag-secciones-interna > .editor-seccion')).map(leerSeccionEditor);
 
           return { titulo, ancla: intento, secciones: seccionesPagina };
         });
 
         const nuevosDatos = {
-          banner: document.getElementById('editor-banner').value.trim(),
           precioMonto: document.getElementById('editor-precio-monto').value.trim(),
           precioPeriodo: document.getElementById('editor-precio-periodo').value.trim(),
           intro: document.getElementById('editor-intro').value,
