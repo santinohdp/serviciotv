@@ -712,6 +712,197 @@
     cursor: pointer;
     margin-right: 6px;
   }
+
+  /* ---- Indicador "está escribiendo…" (estilo WhatsApp) ---- */
+
+  .chat-escribiendo{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 18px 8px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .chat-escribiendo .puntos{
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .chat-escribiendo .puntos span{
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: puntito 1.2s infinite ease-in-out;
+  }
+
+  .chat-escribiendo .puntos span:nth-child(2){ animation-delay: 0.2s; }
+  .chat-escribiendo .puntos span:nth-child(3){ animation-delay: 0.4s; }
+
+  @keyframes puntito{
+    0%, 60%, 100%{ transform: translateY(0); opacity: 0.5; }
+    30%{ transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* ---- Tabs superiores del panel admin ---- */
+
+  .admin-tabs{
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-soft);
+  }
+
+  .admin-tab-btn{
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.3px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .admin-tab-btn.activo{
+    background: rgba(62, 198, 255, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .admin-shell{
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .admin-vista-soporte{
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ---- Editor de sitio (dentro del panel admin) ---- */
+
+  .editor-sitio{
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .editor-campo{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .editor-campo label{
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.3px;
+    color: var(--text-dim);
+  }
+
+  .editor-campo input,
+  .editor-campo textarea,
+  .editor-campo select{
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 11px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.85rem;
+    resize: vertical;
+  }
+
+  .editor-campo input:focus,
+  .editor-campo textarea:focus,
+  .editor-campo select:focus{
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .editor-fila-2{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .editor-seccion{
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg-soft);
+  }
+
+  .editor-seccion-cabecera{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .editor-seccion-cabecera span{
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  .editor-borrar-seccion{
+    background: none;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    border-radius: 7px;
+    padding: 5px 9px;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+
+  .editor-ayuda{
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+
+  .editor-agregar-btn{
+    align-self: flex-start;
+    background: none;
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+    border-radius: 9px;
+    padding: 9px 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .editor-guardar-btn{
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    color: #06121c;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  .editor-estado-guardado{
+    font-size: 0.78rem;
+    min-height: 1.2em;
+    color: #3ddc84;
+  }
 </style>
 </head>
 <body>
@@ -731,12 +922,15 @@
   </header>
 
   <div class="banner">
-    <img src="" alt="Banner principal">
+    <img src="" alt="Banner principal" id="banner-img">
   </div>
 
   <div class="contenido">
     <h2>Mas Informacion</h2>
-    <div class="caja-info">
+    <div class="caja-info" id="caja-info">
+      <!-- Este contenido se reemplaza en tiempo real con lo que haya guardado
+           el panel admin en Firebase (ver renderSitio() más abajo). Lo que
+           está escrito acá abajo es solo el contenido inicial / de respaldo. -->
 
       <p class="intro">
         Disfrutá de películas, series, canales en vivo, deportes, contenido infantil, música, noticias y mucho más,
@@ -809,21 +1003,20 @@
         </ul>
       </div>
 
-      <div class="grid-2">
-        <div class="bloque-info">
-          <h3>Demo gratis por 1 hora</h3>
-          <p>
-            Antes de contratar podés pedir una prueba gratuita para comprobar el funcionamiento del servicio,
-            la calidad de reproducción, el contenido disponible y la compatibilidad con tu dispositivo.
-          </p>
-        </div>
-        <div class="bloque-info">
-          <h3>Requisito de internet</h3>
-          <p>
-            Se recomienda una conexión estable, a partir de 1 Mb o superior. Una mayor velocidad brinda una
-            mejor experiencia, sobre todo con varios dispositivos conectados.
-          </p>
-        </div>
+      <div class="bloque-info">
+        <h3>Demo gratis por 1 hora</h3>
+        <p>
+          Antes de contratar podés pedir una prueba gratuita para comprobar el funcionamiento del servicio,
+          la calidad de reproducción, el contenido disponible y la compatibilidad con tu dispositivo.
+        </p>
+      </div>
+
+      <div class="bloque-info">
+        <h3>Requisito de internet</h3>
+        <p>
+          Se recomienda una conexión estable, a partir de 1 Mb o superior. Una mayor velocidad brinda una
+          mejor experiencia, sobre todo con varios dispositivos conectados.
+        </p>
       </div>
 
       <div class="bloque-info">
@@ -863,11 +1056,11 @@
 
     <div class="caja-chica">
       <div class="imagen-chica">
-        <img src="https://i.imgur.com/2LUhOX6.png" alt="Imagen">
+        <img src="https://i.imgur.com/2LUhOX6.png" alt="Imagen" id="footer-img">
       </div>
       <div class="datos-pie">
-        <span class="derechos">Derechos Servicio De TV 2026</span>
-        <span class="contacto">Contacto: Numero - Gmail</span>
+        <span class="derechos" id="footer-derechos">Derechos Servicio De TV 2026</span>
+        <span class="contacto" id="footer-contacto">Contacto: Numero - Gmail</span>
       </div>
     </div>
   </div>
@@ -915,6 +1108,10 @@
       <!-- Vista del chat, una vez logueado -->
       <div class="oculto" id="vista-chat" style="display:flex; flex-direction:column; flex:1; min-height:0;">
         <div class="chat-mensajes" id="chat-mensajes"></div>
+        <div class="chat-escribiendo oculto" id="chat-escribiendo">
+          <span class="puntos"><span></span><span></span><span></span></span>
+          <span>Soporte está escribiendo…</span>
+        </div>
 
         <div class="chat-pie" id="chat-pie">
           <div class="chat-aviso-fin" id="chat-aviso-fin">
@@ -946,29 +1143,101 @@
         </form>
       </div>
 
-      <!-- Bandeja de conversaciones -->
-      <div class="admin-lista oculto" id="admin-lista"></div>
-      <div class="admin-chat-panel oculto" id="admin-chat-panel">
-        <div class="chat-cabecera">
-          <div class="chat-titulo">
-            <span id="admin-chat-titulo">Elegí una conversación</span>
-            <span class="chat-estado" id="admin-chat-estado">
-              <span class="punto"></span><span id="admin-chat-estado-texto">—</span>
-            </span>
-          </div>
+      <!-- Panel con tabs: Conversaciones / Editar sitio -->
+      <div class="admin-shell oculto" id="admin-shell">
+        <div class="admin-tabs">
+          <button class="admin-tab-btn activo" id="admin-tab-soporte" type="button">💬 Conversaciones</button>
+          <button class="admin-tab-btn" id="admin-tab-editar" type="button">🛠 Editar sitio</button>
+          <div style="flex:1;"></div>
           <button class="chat-cerrar-btn" id="cerrar-admin" aria-label="Cerrar">×</button>
         </div>
-        <div class="admin-controles">
-          <button id="admin-pausar">Pausar</button>
-          <button id="admin-cerrar">Cerrar chat</button>
-          <button id="admin-borrar">Borrar chat</button>
+
+        <!-- Vista: bandeja de conversaciones -->
+        <div class="admin-vista-soporte" id="admin-vista-soporte">
+          <div class="admin-lista" id="admin-lista"></div>
+          <div class="admin-chat-panel" id="admin-chat-panel">
+            <div class="chat-cabecera">
+              <div class="chat-titulo">
+                <span id="admin-chat-titulo">Elegí una conversación</span>
+                <span class="chat-estado" id="admin-chat-estado">
+                  <span class="punto"></span><span id="admin-chat-estado-texto">—</span>
+                </span>
+              </div>
+            </div>
+            <div class="admin-controles">
+              <button id="admin-pausar">Pausar</button>
+              <button id="admin-cerrar">Cerrar chat</button>
+              <button id="admin-borrar">Borrar chat</button>
+            </div>
+            <div class="chat-mensajes" id="admin-mensajes"></div>
+            <div class="chat-escribiendo oculto" id="admin-escribiendo">
+              <span class="puntos"><span></span><span></span><span></span></span>
+              <span>Cliente está escribiendo…</span>
+            </div>
+            <div class="chat-pie">
+              <form class="chat-form" id="admin-form" autocomplete="off">
+                <input type="text" id="admin-input" placeholder="Responder al cliente…" maxlength="500">
+                <button type="submit">Enviar</button>
+              </form>
+            </div>
+          </div>
         </div>
-        <div class="chat-mensajes" id="admin-mensajes"></div>
-        <div class="chat-pie">
-          <form class="chat-form" id="admin-form" autocomplete="off">
-            <input type="text" id="admin-input" placeholder="Responder al cliente…" maxlength="500">
-            <button type="submit">Enviar</button>
-          </form>
+
+        <!-- Vista: editor del sitio -->
+        <div class="editor-sitio oculto" id="editor-sitio">
+
+          <div class="editor-campo">
+            <label>URL de la imagen del banner</label>
+            <input type="text" id="editor-banner" placeholder="https://...">
+          </div>
+
+          <div class="editor-fila-2">
+            <div class="editor-campo">
+              <label>Precio (monto)</label>
+              <input type="text" id="editor-precio-monto" placeholder="$5.000">
+            </div>
+            <div class="editor-campo">
+              <label>Precio (detalle / período)</label>
+              <input type="text" id="editor-precio-periodo" placeholder="por mes · hasta 4 dispositivos">
+            </div>
+          </div>
+
+          <div class="editor-campo">
+            <label>Texto de introducción</label>
+            <textarea id="editor-intro" rows="3"></textarea>
+          </div>
+
+          <div class="editor-campo">
+            <label>Secciones de "Más información"</label>
+            <p class="editor-ayuda">
+              Cada sección tiene un título, un tipo y un contenido:<br>
+              • <strong>Texto</strong>: un párrafo normal.<br>
+              • <strong>Lista</strong>: un ítem por línea.<br>
+              • <strong>Lista numerada (pasos)</strong>: un paso por línea.<br>
+              • <strong>Grilla de categorías</strong>: una categoría por línea, con el formato
+              <code>Título: ítem 1 | ítem 2 | ítem 3</code>
+            </p>
+          </div>
+
+          <div id="editor-secciones"></div>
+
+          <button class="editor-agregar-btn" id="editor-agregar-seccion" type="button">+ Agregar sección</button>
+
+          <div class="editor-campo">
+            <label>Pie de página — texto de derechos</label>
+            <input type="text" id="editor-footer-derechos" placeholder="Derechos Servicio De TV 2026">
+          </div>
+          <div class="editor-campo">
+            <label>Pie de página — contacto</label>
+            <input type="text" id="editor-footer-contacto" placeholder="Contacto: Numero - Gmail">
+          </div>
+          <div class="editor-campo">
+            <label>Pie de página — URL de la imagen</label>
+            <input type="text" id="editor-footer-img" placeholder="https://...">
+          </div>
+
+          <button class="editor-guardar-btn" id="editor-guardar" type="button">Guardar cambios en la web</button>
+          <p class="editor-estado-guardado" id="editor-estado-guardado"></p>
         </div>
       </div>
     </div>
@@ -1030,6 +1299,121 @@
       return u.trim().toLowerCase().replace(/[.#$/\[\]]/g, '');
     }
 
+    // ---- Sonido de notificación (beep corto, generado en el navegador: no
+    // depende de ningún archivo de audio externo) ----
+    function sonidoNotificacion(){
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      } catch (err) { /* el navegador puede bloquear audio sin interacción previa */ }
+    }
+
+    // =====================================================================
+    // CONTENIDO DEL SITIO ("Más información") — editable desde el panel admin
+    // y guardado en Firebase, en soporte_sitio/datos
+    // =====================================================================
+
+    const REF_SITIO = db.ref('soporte_sitio/datos');
+
+    // Contenido inicial: el mismo que ya tenía la página escrito a mano.
+    // Se usa solo la primera vez, si todavía no hay nada guardado en Firebase.
+    const SITIO_POR_DEFECTO = {
+      banner: '',
+      intro: 'Disfrutá de películas, series, canales en vivo, deportes, contenido infantil, música, noticias y mucho más, todo en un solo lugar y pensado para toda la familia.',
+      precioMonto: '$5.000',
+      precioPeriodo: 'por mes · hasta 4 dispositivos en simultáneo',
+      footerImg: 'https://i.imgur.com/2LUhOX6.png',
+      footerDerechos: 'Derechos Servicio De TV 2026',
+      footerContacto: 'Contacto: Numero - Gmail',
+      secciones: [
+        {
+          titulo: 'Qué incluye el servicio',
+          tipo: 'grid',
+          contenido: 'Canales argentinos: Canales de aire y TV Pública | Canales nacionales, locales y regionales | Eventos y programación variada\nCanales internacionales: Latinoamérica | Estados Unidos | Entretenimiento para todos los gustos\nDeportes: Fútbol, Libertadores, Premier League, Champions | UFC, NBA, Fórmula 1, Tenis\nPelículas y series: Estrenos y clásicos | Terror, acción, comedia, drama, animación | Series actualizadas\nPara toda la familia: Contenido infantil | Música, conciertos y videoclips | Radios argentinas\nInformación y cultura: Noticias nacionales e internacionales | Documentales de historia, ciencia y naturaleza'
+        },
+        { titulo: 'Packs disponibles', tipo: 'lista', contenido: 'Pack Fútbol\nPack HBO\nPack Universal' },
+        { titulo: 'Demo gratis por 1 hora', tipo: 'texto', contenido: 'Antes de contratar podés pedir una prueba gratuita para comprobar el funcionamiento del servicio, la calidad de reproducción, el contenido disponible y la compatibilidad con tu dispositivo.' },
+        { titulo: 'Requisito de internet', tipo: 'texto', contenido: 'Se recomienda una conexión estable, a partir de 1 Mb o superior. Una mayor velocidad brinda una mejor experiencia, sobre todo con varios dispositivos conectados.' },
+        { titulo: 'Dispositivos compatibles', tipo: 'lista', contenido: 'Android TV, Google TV y TV Box\nFire TV\nCelulares Android y tablets\nPC, notebook y Smart TV compatibles\nRoku no es compatible' },
+        { titulo: 'Por qué elegirnos', tipo: 'lista', contenido: 'Gran variedad de canales, películas, series y deportes\nContenido infantil y radios argentinas\nCompatible con varios dispositivos, hasta 4 al mismo tiempo\nDemo gratis, activación rápida y contenido actualizado\nAtención personalizada' },
+        { titulo: 'Cómo funciona', tipo: 'lista_numerada', contenido: 'Nos escribís\nSolicitás tu demo gratuita\nProbás el servicio\nSi te gusta, activás tu cuenta\nEmpezás a disfrutar' }
+      ]
+    };
+
+    // Dibuja una sección según su tipo (texto / lista / lista_numerada / grid)
+    function renderSeccionHTML(sec){
+      const titulo = `<h3>${escapeHTML(sec.titulo || '')}</h3>`;
+      const lineas = (sec.contenido || '').split('\n').map(l => l.trim()).filter(Boolean);
+
+      if (sec.tipo === 'lista') {
+        return `<div class="bloque-info">${titulo}<ul class="lista-simple">${
+          lineas.map(l => `<li>${escapeHTML(l)}</li>`).join('')
+        }</ul></div>`;
+      }
+
+      if (sec.tipo === 'lista_numerada') {
+        return `<div class="bloque-info">${titulo}<ol class="lista-pasos">${
+          lineas.map(l => `<li>${escapeHTML(l)}</li>`).join('')
+        }</ol></div>`;
+      }
+
+      if (sec.tipo === 'grid') {
+        const categorias = lineas.map(linea => {
+          const [tit, resto] = linea.split(':');
+          const items = (resto || '').split('|').map(i => i.trim()).filter(Boolean);
+          return `<div class="categoria"><strong>${escapeHTML((tit||'').trim())}</strong><ul>${
+            items.map(i => `<li>${escapeHTML(i)}</li>`).join('')
+          }</ul></div>`;
+        }).join('');
+        return `<div class="bloque-info">${titulo}<div class="grid-categorias">${categorias}</div></div>`;
+      }
+
+      // tipo 'texto' por defecto
+      return `<div class="bloque-info">${titulo}<p>${escapeHTML(sec.contenido || '')}</p></div>`;
+    }
+
+    function renderSitio(datos){
+      if (!datos) return;
+
+      document.getElementById('banner-img').src = datos.banner || '';
+      document.getElementById('footer-img').src = datos.footerImg || '';
+      document.getElementById('footer-derechos').textContent = datos.footerDerechos || '';
+      document.getElementById('footer-contacto').textContent = datos.footerContacto || '';
+
+      const cajaInfo = document.getElementById('caja-info');
+      const secciones = Array.isArray(datos.secciones) ? datos.secciones : [];
+
+      cajaInfo.innerHTML =
+        `<p class="intro">${escapeHTML(datos.intro || '')}</p>` +
+        `<div class="precio-destacado"><span class="monto">${escapeHTML(datos.precioMonto || '')}</span><span class="periodo">${escapeHTML(datos.precioPeriodo || '')}</span></div>` +
+        secciones.map(renderSeccionHTML).join('');
+    }
+
+    // Si todavía no hay nada guardado en Firebase, se siembra con el
+    // contenido por defecto (así el primer admin que entre ya ve algo para editar).
+    REF_SITIO.once('value').then(snap => {
+      if (!snap.exists()) {
+        REF_SITIO.set(SITIO_POR_DEFECTO);
+      }
+    });
+
+    // Escucha en vivo: cualquier cambio guardado desde el panel admin se
+    // refleja al instante en todas las pestañas abiertas de la web.
+    REF_SITIO.on('value', snap => {
+      renderSitio(snap.val() || SITIO_POR_DEFECTO);
+    });
+
     // true si la URL trae ?admin=1 — decide si "Soporte" abre el chat del
     // cliente o el panel del vendedor.
     const modoAdmin = new URLSearchParams(location.search).get('admin') === '1';
@@ -1058,6 +1442,12 @@
 
     let refMensajesActual = null;
     let refEstadoActual = null;
+    let refEscribiendoAdmin = null;
+    let refEscribiendoClienteSalida = null;
+    let clienteSincronizado = false; // pasa a true después de cargar el historial, para no sonar con mensajes viejos
+
+    const chatEscribiendoEl = document.getElementById('chat-escribiendo');
+    let timeoutEscribiendoCliente = null;
 
     tabNueva.addEventListener('click', () => {
       tabNueva.classList.add('activo');
@@ -1084,6 +1474,9 @@
       formLogin.reset();
       if (refMensajesActual) refMensajesActual.off();
       if (refEstadoActual) refEstadoActual.off();
+      if (refEscribiendoAdmin) refEscribiendoAdmin.off();
+      chatEscribiendoEl.classList.add('oculto');
+      clienteSincronizado = false;
     }
 
     function pintarMensaje(msg){
@@ -1096,6 +1489,13 @@
       div.innerHTML = contenido + `<span class="msg-hora">${msg.hora || ''}</span>`;
       mensajesEl.appendChild(div);
       mensajesEl.scrollTop = mensajesEl.scrollHeight;
+
+      // Sonido de notificación: solo para mensajes que llegan nuevos (no el
+      // historial que se carga al entrar) y que no fueron escritos por el
+      // propio cliente.
+      if (clienteSincronizado && msg.autor !== 'cliente') {
+        sonidoNotificacion();
+      }
     }
 
     function actualizarEstadoUI(estado){
@@ -1124,12 +1524,23 @@
       salirBtn.classList.remove('oculto');
       mensajesEl.innerHTML = '';
 
+      clienteSincronizado = false;
       const refChat = db.ref('soporte_chats/' + chatId);
       refMensajesActual = refChat.child('mensajes');
       refEstadoActual = refChat.child('estado');
+      refEscribiendoAdmin = refChat.child('escribiendo/admin');
 
       refMensajesActual.off();
       refMensajesActual.on('child_added', snap => pintarMensaje(snap.val()));
+      // Una vez que se cargó el historial existente, los próximos
+      // child_added son mensajes realmente nuevos: recién ahí suena la notificación.
+      refMensajesActual.once('value').then(() => { clienteSincronizado = true; });
+
+      if (refEscribiendoAdmin) refEscribiendoAdmin.off();
+      refEscribiendoAdmin.on('value', snap => {
+        chatEscribiendoEl.classList.toggle('oculto', !snap.val());
+        if (snap.val()) mensajesEl.scrollTop = mensajesEl.scrollHeight;
+      });
 
       refEstadoActual.off();
       refEstadoActual.on('value', snap => {
@@ -1234,6 +1645,16 @@
       if (!texto || !refMensajesActual) return;
       refMensajesActual.push({ autor: 'cliente', texto, hora: horaActual() });
       input.value = '';
+      clearTimeout(timeoutEscribiendoCliente);
+      refMensajesActual.parent.child('escribiendo/cliente').set(false);
+    });
+
+    input.addEventListener('input', function(){
+      if (!refMensajesActual) return;
+      const refEscribiendoCliente = refMensajesActual.parent.child('escribiendo/cliente');
+      refEscribiendoCliente.set(true);
+      clearTimeout(timeoutEscribiendoCliente);
+      timeoutEscribiendoCliente = setTimeout(() => refEscribiendoCliente.set(false), 2000);
     });
 
     // ================= LADO ADMIN (?admin=1) =================
@@ -1261,7 +1682,32 @@
       let chatSeleccionado = null;
       let refMensajesAdmin = null;
       let refEstadoAdmin = null;
+      let refEscribiendoClienteAdmin = null;
       let listaCargada = false;
+      let adminSincronizado = false;
+      let timeoutEscribiendoAdmin = null;
+      const adminEscribiendoEl = document.getElementById('admin-escribiendo');
+
+      // ---- Tabs del panel: Conversaciones / Editar sitio ----
+      const tabSoporte = document.getElementById('admin-tab-soporte');
+      const tabEditar = document.getElementById('admin-tab-editar');
+      const vistaSoporte = document.getElementById('admin-vista-soporte');
+      const vistaEditar = document.getElementById('editor-sitio');
+
+      tabSoporte.addEventListener('click', () => {
+        tabSoporte.classList.add('activo');
+        tabEditar.classList.remove('activo');
+        vistaSoporte.classList.remove('oculto');
+        vistaEditar.classList.add('oculto');
+      });
+
+      tabEditar.addEventListener('click', () => {
+        tabEditar.classList.add('activo');
+        tabSoporte.classList.remove('activo');
+        vistaEditar.classList.remove('oculto');
+        vistaSoporte.classList.add('oculto');
+        cargarEditorSitio();
+      });
 
       lanzador.addEventListener('click', () => {
         adminOverlay.classList.add('abierto');
@@ -1287,8 +1733,7 @@
 
       function mostrarBandejaAdmin(){
         adminVistaLogin.classList.add('oculto');
-        listaEl.classList.remove('oculto');
-        panelEl.classList.remove('oculto');
+        document.getElementById('admin-shell').classList.remove('oculto');
         if (!listaCargada) { cargarLista(); listaCargada = true; }
       }
 
@@ -1312,11 +1757,14 @@
       function seleccionarChat(id){
         chatSeleccionado = id;
         adminMensajesEl.innerHTML = '';
+        adminSincronizado = false;
+        adminEscribiendoEl.classList.add('oculto');
         let usuarioDeEsteChat = null;
 
         const refChat = db.ref('soporte_chats/' + id);
         if (refMensajesAdmin) refMensajesAdmin.off();
         if (refEstadoAdmin) refEstadoAdmin.off();
+        if (refEscribiendoClienteAdmin) refEscribiendoClienteAdmin.off();
 
         refChat.child('usuario').once('value', s => {
           usuarioDeEsteChat = s.val();
@@ -1325,8 +1773,15 @@
 
         refMensajesAdmin = refChat.child('mensajes');
         refEstadoAdmin = refChat.child('estado');
+        refEscribiendoClienteAdmin = refChat.child('escribiendo/cliente');
 
         refMensajesAdmin.on('child_added', s => pintarMensajeAdmin(s.val()));
+        refMensajesAdmin.once('value').then(() => { adminSincronizado = true; });
+
+        refEscribiendoClienteAdmin.on('value', s => {
+          adminEscribiendoEl.classList.toggle('oculto', !s.val());
+          if (s.val()) adminMensajesEl.scrollTop = adminMensajesEl.scrollHeight;
+        });
         refEstadoAdmin.on('value', s => {
           if (!s.exists()) {
             // La conversación fue borrada
@@ -1355,6 +1810,10 @@
         div.innerHTML = escapeHTML(msg.texto) + `<span class="msg-hora">${msg.hora || ''}</span>`;
         adminMensajesEl.appendChild(div);
         adminMensajesEl.scrollTop = adminMensajesEl.scrollHeight;
+
+        if (adminSincronizado && msg.autor === 'cliente') {
+          sonidoNotificacion();
+        }
       }
 
       adminForm.addEventListener('submit', e => {
@@ -1363,6 +1822,16 @@
         if (!texto || !chatSeleccionado) return;
         db.ref('soporte_chats/' + chatSeleccionado + '/mensajes').push({ autor: 'admin', texto, hora: horaActual() });
         adminInput.value = '';
+        clearTimeout(timeoutEscribiendoAdmin);
+        db.ref('soporte_chats/' + chatSeleccionado + '/escribiendo/admin').set(false);
+      });
+
+      adminInput.addEventListener('input', () => {
+        if (!chatSeleccionado) return;
+        const refEsc = db.ref('soporte_chats/' + chatSeleccionado + '/escribiendo/admin');
+        refEsc.set(true);
+        clearTimeout(timeoutEscribiendoAdmin);
+        timeoutEscribiendoAdmin = setTimeout(() => refEsc.set(false), 2000);
       });
 
       btnPausar.addEventListener('click', () => {
@@ -1386,6 +1855,98 @@
           const usuario = s.val();
           db.ref('soporte_chats/' + idABorrar).remove();
           if (usuario) db.ref('soporte_usuarios/' + usuario).remove();
+        });
+      });
+
+      // ================= EDITOR DE SITIO =================
+
+      const editorSeccionesEl = document.getElementById('editor-secciones');
+      const estadoGuardadoEl = document.getElementById('editor-estado-guardado');
+      let datosSitioActuales = null;
+      let editorYaCargado = false;
+
+      function crearFilaSeccion(sec){
+        sec = sec || { titulo: '', tipo: 'texto', contenido: '' };
+        const div = document.createElement('div');
+        div.className = 'editor-seccion';
+        div.innerHTML = `
+          <div class="editor-seccion-cabecera">
+            <span>SECCIÓN</span>
+            <button type="button" class="editor-borrar-seccion">Borrar sección</button>
+          </div>
+          <div class="editor-campo">
+            <label>Título</label>
+            <input type="text" class="sec-titulo" value="${escapeHTML(sec.titulo || '')}">
+          </div>
+          <div class="editor-campo">
+            <label>Tipo</label>
+            <select class="sec-tipo">
+              <option value="texto">Texto</option>
+              <option value="lista">Lista</option>
+              <option value="lista_numerada">Lista numerada (pasos)</option>
+              <option value="grid">Grilla de categorías</option>
+            </select>
+          </div>
+          <div class="editor-campo">
+            <label>Contenido</label>
+            <textarea class="sec-contenido" rows="4">${escapeHTML(sec.contenido || '')}</textarea>
+          </div>
+        `;
+        div.querySelector('.sec-tipo').value = sec.tipo || 'texto';
+        div.querySelector('.editor-borrar-seccion').addEventListener('click', () => div.remove());
+        return div;
+      }
+
+      function cargarEditorSitio(){
+        REF_SITIO.once('value').then(snap => {
+          datosSitioActuales = snap.val() || SITIO_POR_DEFECTO;
+
+          document.getElementById('editor-banner').value = datosSitioActuales.banner || '';
+          document.getElementById('editor-precio-monto').value = datosSitioActuales.precioMonto || '';
+          document.getElementById('editor-precio-periodo').value = datosSitioActuales.precioPeriodo || '';
+          document.getElementById('editor-intro').value = datosSitioActuales.intro || '';
+          document.getElementById('editor-footer-derechos').value = datosSitioActuales.footerDerechos || '';
+          document.getElementById('editor-footer-contacto').value = datosSitioActuales.footerContacto || '';
+          document.getElementById('editor-footer-img').value = datosSitioActuales.footerImg || '';
+
+          editorSeccionesEl.innerHTML = '';
+          (datosSitioActuales.secciones || []).forEach(sec => {
+            editorSeccionesEl.appendChild(crearFilaSeccion(sec));
+          });
+
+          editorYaCargado = true;
+          estadoGuardadoEl.textContent = '';
+        });
+      }
+
+      document.getElementById('editor-agregar-seccion').addEventListener('click', () => {
+        editorSeccionesEl.appendChild(crearFilaSeccion());
+      });
+
+      document.getElementById('editor-guardar').addEventListener('click', () => {
+        const secciones = Array.from(editorSeccionesEl.querySelectorAll('.editor-seccion')).map(div => ({
+          titulo: div.querySelector('.sec-titulo').value.trim(),
+          tipo: div.querySelector('.sec-tipo').value,
+          contenido: div.querySelector('.sec-contenido').value
+        }));
+
+        const nuevosDatos = {
+          banner: document.getElementById('editor-banner').value.trim(),
+          precioMonto: document.getElementById('editor-precio-monto').value.trim(),
+          precioPeriodo: document.getElementById('editor-precio-periodo').value.trim(),
+          intro: document.getElementById('editor-intro').value,
+          footerDerechos: document.getElementById('editor-footer-derechos').value.trim(),
+          footerContacto: document.getElementById('editor-footer-contacto').value.trim(),
+          footerImg: document.getElementById('editor-footer-img').value.trim(),
+          secciones
+        };
+
+        estadoGuardadoEl.textContent = 'Guardando…';
+        REF_SITIO.set(nuevosDatos).then(() => {
+          estadoGuardadoEl.textContent = '✓ Cambios guardados. Ya se ven en la web.';
+          setTimeout(() => { estadoGuardadoEl.textContent = ''; }, 4000);
+        }).catch(() => {
+          estadoGuardadoEl.textContent = 'Hubo un error al guardar. Probá de nuevo.';
         });
       });
     }
