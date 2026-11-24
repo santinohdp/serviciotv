@@ -980,7 +980,6 @@
 
   <div class="contenido">
     <section id="inicio" class="vista-pagina activa" aria-label="Página de inicio">
-      <h2>Mas Informacion</h2>
       <div class="caja-info" id="caja-info">
       <!-- Este contenido se reemplaza en tiempo real con lo que haya guardado
            el panel admin en Firebase (ver renderSitio() más abajo). Lo que
@@ -1504,14 +1503,29 @@
       contenedor.querySelectorAll('iframe.visor-html:not([data-preparado])').forEach(iframe => {
         const plantilla = iframe.nextElementSibling;
         const codigo = plantilla ? plantilla.content.textContent : '';
+        // El visor se autoajusta al contenido. Importante: no sumar un margen
+        // grande a la altura informada, porque documentos con min-height:100vh
+        // volverían a crecer en cada ResizeObserver y empujarían el contenido abajo.
         const scriptAltura = '<scr' + 'ipt>(function(){' +
-          'function enviarAltura(){' +
-            'var alto=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);' +
-            'parent.postMessage({type:"tv-html-preview-height",height:alto},"*");' +
+          'var ultimaAltura=0,programado=false;' +
+          'function medirAltura(){' +
+            'programado=false;' +
+            'var doc=document.documentElement,body=document.body;' +
+            'var alto=Math.max(doc?doc.scrollHeight:0,doc?doc.offsetHeight:0,body?body.scrollHeight:0,body?body.offsetHeight:0);' +
+            'alto=Math.ceil(alto||0);' +
+            'if(alto>0&&Math.abs(alto-ultimaAltura)>1){' +
+              'ultimaAltura=alto;' +
+              'parent.postMessage({type:"tv-html-preview-height",height:alto},"*");' +
+            '}' +
           '}' +
-          'window.addEventListener("load",enviarAltura);' +
-          'if("ResizeObserver" in window){new ResizeObserver(enviarAltura).observe(document.documentElement);}' +
-          'setTimeout(enviarAltura,80);setTimeout(enviarAltura,350);setTimeout(enviarAltura,1000);' +
+          'function pedirMedicion(){if(programado)return;programado=true;if(window.requestAnimationFrame){requestAnimationFrame(medirAltura);}else{setTimeout(medirAltura,30);}}' +
+          'window.addEventListener("load",pedirMedicion);' +
+          'window.addEventListener("resize",pedirMedicion);' +
+          'window.addEventListener("imagesLoaded",pedirMedicion);' +
+          'if("ResizeObserver" in window){var ro=new ResizeObserver(pedirMedicion);if(document.documentElement)ro.observe(document.documentElement);if(document.body)ro.observe(document.body);}' +
+          'if("MutationObserver" in window&&document.documentElement){new MutationObserver(pedirMedicion).observe(document.documentElement,{childList:true,subtree:true,attributes:true,characterData:true});}' +
+          'document.addEventListener("load",pedirMedicion,true);' +
+          'setTimeout(pedirMedicion,80);setTimeout(pedirMedicion,350);setTimeout(pedirMedicion,1000);setTimeout(pedirMedicion,2000);' +
         '})();</scr' + 'ipt>';
 
         let documento = codigo;
@@ -1535,9 +1549,15 @@
         .find(frame => frame.contentWindow === event.source);
       if (!iframe) return;
 
-      const alto = Number(datos.height);
-      if (Number.isFinite(alto)) {
-        iframe.style.height = Math.max(180, Math.min(alto + 24, 5000)) + 'px';
+      const alto = Math.ceil(Number(datos.height));
+      if (Number.isFinite(alto) && alto > 0) {
+        // El iframe usa box-sizing:border-box y tiene un borde de 1px:
+        // agregamos solamente esos 2px para que el área interna conserve
+        // la altura informada, sin provocar un ciclo de crecimiento.
+        const alturaExterior = Math.max(182, Math.min(alto + 2, 5000));
+        if (Math.abs(iframe.getBoundingClientRect().height - alturaExterior) > 1) {
+          iframe.style.height = alturaExterior + 'px';
+        }
       }
     });
 
