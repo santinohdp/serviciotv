@@ -903,6 +903,31 @@
     min-height: 1.2em;
     color: #3ddc84;
   }
+
+  /* ---- Editor de páginas del menú ---- */
+
+  .editor-pagina{
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg-soft);
+  }
+
+  .pag-secciones-interna{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+  }
+
+  /* Espacio entre los bloques de páginas dinámicas, en la web pública */
+  .bloque-pagina{
+    margin-top: 40px;
+  }
 </style>
 </head>
 <body>
@@ -916,8 +941,8 @@
     </div>
     <nav>
       <a href="#" id="abrir-soporte">Soporte</a>
-      <a href="#contratar">Contratar Servicio</a>
-      <a href="#completo">Servicio Completo</a>
+      <!-- Los demás links del menú (Contratar Servicio, Servicio Completo, y los
+           que agregue el admin) se insertan acá dinámicamente, ver renderNavYPaginas() -->
     </nav>
   </header>
 
@@ -1053,6 +1078,10 @@
       </div>
 
     </div>
+
+    <!-- Páginas del menú (Contratar Servicio, Servicio Completo, y las que
+         agregue el admin). Cada una se dibuja acá con su propio <h2>+caja. -->
+    <div id="paginas-dinamicas"></div>
 
     <div class="caja-chica">
       <div class="imagen-chica">
@@ -1208,6 +1237,19 @@
           </div>
 
           <div class="editor-campo">
+            <label>Páginas del menú de arriba</label>
+            <p class="editor-ayuda">
+              Cada página que agregues acá aparece como un link más en el menú (al lado de "Soporte",
+              como "Contratar Servicio" o "Servicio Completo"). Al hacer clic, lleva directo a su
+              propio bloque de contenido más abajo en la página. "Soporte" no se edita acá porque
+              abre el chat, no una página.
+            </p>
+          </div>
+
+          <div id="editor-paginas"></div>
+          <button class="editor-agregar-btn" id="editor-agregar-pagina" type="button">+ Agregar página al menú</button>
+
+          <div class="editor-campo">
             <label>Secciones de "Más información"</label>
             <p class="editor-ayuda">
               Cada sección tiene un título, un tipo y un contenido:<br>
@@ -1348,8 +1390,39 @@
         { titulo: 'Dispositivos compatibles', tipo: 'lista', contenido: 'Android TV, Google TV y TV Box\nFire TV\nCelulares Android y tablets\nPC, notebook y Smart TV compatibles\nRoku no es compatible' },
         { titulo: 'Por qué elegirnos', tipo: 'lista', contenido: 'Gran variedad de canales, películas, series y deportes\nContenido infantil y radios argentinas\nCompatible con varios dispositivos, hasta 4 al mismo tiempo\nDemo gratis, activación rápida y contenido actualizado\nAtención personalizada' },
         { titulo: 'Cómo funciona', tipo: 'lista_numerada', contenido: 'Nos escribís\nSolicitás tu demo gratuita\nProbás el servicio\nSi te gusta, activás tu cuenta\nEmpezás a disfrutar' }
+      ],
+      // Páginas del menú de arriba (además de "Soporte", que es fijo).
+      // Cada una aparece como un link más en el menú y tiene su propio bloque
+      // de contenido, con el mismo sistema de secciones de arriba.
+      paginas: [
+        {
+          titulo: 'Contratar Servicio',
+          ancla: 'contratar',
+          secciones: [
+            { titulo: 'Cómo contratar', tipo: 'texto', contenido: 'Escribinos por Soporte o por WhatsApp para coordinar la activación de tu cuenta y elegir el plan que más te convenga.' }
+          ]
+        },
+        {
+          titulo: 'Servicio Completo',
+          ancla: 'completo',
+          secciones: [
+            { titulo: 'Todo incluido', tipo: 'texto', contenido: 'Acá podés detallar todo lo que incluye el servicio completo.' }
+          ]
+        }
       ]
     };
+
+    // Convierte un título en un identificador simple para usar como ancla del
+    // menú (ej: "Servicio Completo" -> "servicio-completo").
+    function slugify(str){
+      const base = (str || 'pagina').toString()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      return base || 'pagina';
+    }
 
     // Dibuja una sección según su tipo (texto / lista / lista_numerada / grid)
     function renderSeccionHTML(sec){
@@ -1398,20 +1471,56 @@
         `<p class="intro">${escapeHTML(datos.intro || '')}</p>` +
         `<div class="precio-destacado"><span class="monto">${escapeHTML(datos.precioMonto || '')}</span><span class="periodo">${escapeHTML(datos.precioPeriodo || '')}</span></div>` +
         secciones.map(renderSeccionHTML).join('');
+
+      renderNavYPaginas(datos);
+    }
+
+    // Dibuja los links extra del menú (al lado de "Soporte") y el contenido
+    // de cada página, a partir de datos.paginas.
+    function renderNavYPaginas(datos){
+      const nav = document.querySelector('header nav');
+      nav.querySelectorAll('.nav-dinamico').forEach(a => a.remove());
+
+      const paginas = Array.isArray(datos.paginas) ? datos.paginas : [];
+
+      paginas.forEach(pagina => {
+        const a = document.createElement('a');
+        a.href = '#' + (pagina.ancla || slugify(pagina.titulo));
+        a.textContent = pagina.titulo || '';
+        a.className = 'nav-dinamico';
+        nav.appendChild(a);
+      });
+
+      const contenedor = document.getElementById('paginas-dinamicas');
+      contenedor.innerHTML = paginas.map(pagina => {
+        const secciones = Array.isArray(pagina.secciones) ? pagina.secciones : [];
+        return `<div class="bloque-pagina" id="${escapeHTML(pagina.ancla || slugify(pagina.titulo))}">` +
+          `<h2>${escapeHTML(pagina.titulo || '')}</h2>` +
+          `<div class="caja-info">${secciones.map(renderSeccionHTML).join('')}</div>` +
+        `</div>`;
+      }).join('');
     }
 
     // Si todavía no hay nada guardado en Firebase, se siembra con el
     // contenido por defecto (así el primer admin que entre ya ve algo para editar).
     REF_SITIO.once('value').then(snap => {
       if (!snap.exists()) {
-        REF_SITIO.set(SITIO_POR_DEFECTO);
+        REF_SITIO.set(SITIO_POR_DEFECTO).catch(err => {
+          console.error('No se pudo guardar el contenido inicial del sitio en Firebase (revisá las reglas de la Realtime Database):', err);
+        });
       }
+    }).catch(err => {
+      console.error('No se pudo leer soporte_sitio/datos desde Firebase (revisá las reglas de la Realtime Database):', err);
+      renderSitio(SITIO_POR_DEFECTO);
     });
 
     // Escucha en vivo: cualquier cambio guardado desde el panel admin se
     // refleja al instante en todas las pestañas abiertas de la web.
     REF_SITIO.on('value', snap => {
       renderSitio(snap.val() || SITIO_POR_DEFECTO);
+    }, err => {
+      console.error('Error escuchando soporte_sitio/datos (revisá las reglas de la Realtime Database):', err);
+      renderSitio(SITIO_POR_DEFECTO);
     });
 
     // true si la URL trae ?admin=1 — decide si "Soporte" abre el chat del
@@ -1897,6 +2006,38 @@
         return div;
       }
 
+      // Fila para una página del menú (ej. "Contratar Servicio"), con su
+      // propio título y su propia lista de bloques de contenido (reutiliza
+      // crearFilaSeccion para cada bloque).
+      function crearFilaPagina(pagina){
+        pagina = pagina || { titulo: '', secciones: [] };
+        const div = document.createElement('div');
+        div.className = 'editor-pagina';
+        div.innerHTML = `
+          <div class="editor-seccion-cabecera">
+            <span>PÁGINA DEL MENÚ</span>
+            <button type="button" class="editor-borrar-seccion">Borrar página</button>
+          </div>
+          <div class="editor-campo">
+            <label>Nombre que aparece en el menú</label>
+            <input type="text" class="pag-titulo" value="${escapeHTML(pagina.titulo || '')}">
+          </div>
+          <p class="editor-ayuda">Contenido de esta página (mismo formato que las secciones de "Más información"):</p>
+          <div class="pag-secciones-interna"></div>
+          <button type="button" class="editor-agregar-btn pag-agregar-bloque">+ Agregar bloque de contenido</button>
+        `;
+
+        const internaEl = div.querySelector('.pag-secciones-interna');
+        (pagina.secciones || []).forEach(sec => internaEl.appendChild(crearFilaSeccion(sec)));
+
+        div.querySelector('.pag-agregar-bloque').addEventListener('click', () => {
+          internaEl.appendChild(crearFilaSeccion());
+        });
+        div.querySelector('.editor-borrar-seccion').addEventListener('click', () => div.remove());
+
+        return div;
+      }
+
       function cargarEditorSitio(){
         REF_SITIO.once('value').then(snap => {
           datosSitioActuales = snap.val() || SITIO_POR_DEFECTO;
@@ -1914,6 +2055,12 @@
             editorSeccionesEl.appendChild(crearFilaSeccion(sec));
           });
 
+          const editorPaginasEl = document.getElementById('editor-paginas');
+          editorPaginasEl.innerHTML = '';
+          (datosSitioActuales.paginas || []).forEach(pagina => {
+            editorPaginasEl.appendChild(crearFilaPagina(pagina));
+          });
+
           editorYaCargado = true;
           estadoGuardadoEl.textContent = '';
         });
@@ -1923,12 +2070,34 @@
         editorSeccionesEl.appendChild(crearFilaSeccion());
       });
 
+      document.getElementById('editor-agregar-pagina').addEventListener('click', () => {
+        document.getElementById('editor-paginas').appendChild(crearFilaPagina());
+      });
+
       document.getElementById('editor-guardar').addEventListener('click', () => {
         const secciones = Array.from(editorSeccionesEl.querySelectorAll('.editor-seccion')).map(div => ({
           titulo: div.querySelector('.sec-titulo').value.trim(),
           tipo: div.querySelector('.sec-tipo').value,
           contenido: div.querySelector('.sec-contenido').value
         }));
+
+        const anclasUsadas = new Set();
+        const paginas = Array.from(document.querySelectorAll('#editor-paginas > .editor-pagina')).map(div => {
+          const titulo = div.querySelector('.pag-titulo').value.trim() || 'Página';
+          let ancla = slugify(titulo);
+          let intento = ancla;
+          let n = 2;
+          while (anclasUsadas.has(intento)) { intento = ancla + '-' + n; n++; }
+          anclasUsadas.add(intento);
+
+          const seccionesPagina = Array.from(div.querySelectorAll('.pag-secciones-interna > .editor-seccion')).map(s => ({
+            titulo: s.querySelector('.sec-titulo').value.trim(),
+            tipo: s.querySelector('.sec-tipo').value,
+            contenido: s.querySelector('.sec-contenido').value
+          }));
+
+          return { titulo, ancla: intento, secciones: seccionesPagina };
+        });
 
         const nuevosDatos = {
           banner: document.getElementById('editor-banner').value.trim(),
@@ -1938,15 +2107,20 @@
           footerDerechos: document.getElementById('editor-footer-derechos').value.trim(),
           footerContacto: document.getElementById('editor-footer-contacto').value.trim(),
           footerImg: document.getElementById('editor-footer-img').value.trim(),
-          secciones
+          secciones,
+          paginas
         };
 
         estadoGuardadoEl.textContent = 'Guardando…';
+        estadoGuardadoEl.style.color = '#3ddc84';
         REF_SITIO.set(nuevosDatos).then(() => {
           estadoGuardadoEl.textContent = '✓ Cambios guardados. Ya se ven en la web.';
           setTimeout(() => { estadoGuardadoEl.textContent = ''; }, 4000);
-        }).catch(() => {
-          estadoGuardadoEl.textContent = 'Hubo un error al guardar. Probá de nuevo.';
+        }).catch(err => {
+          console.error('Error al guardar el sitio en Firebase:', err);
+          estadoGuardadoEl.style.color = '#ef4444';
+          estadoGuardadoEl.textContent = 'No se pudo guardar: ' + err.message +
+            '. Revisá las reglas de la Realtime Database en Firebase (ver abajo).';
         });
       });
     }
