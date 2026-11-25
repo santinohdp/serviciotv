@@ -2308,13 +2308,21 @@
           pcLlamadaCliente.addTrack(track, streamLocalCliente);
         });
         pcLlamadaCliente.ontrack = event => {
-          const pistas = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
-          pistas.forEach(pista => { if (!streamRemotoCliente.getTracks().some(existing => existing.id === pista.id)) streamRemotoCliente.addTrack(pista); });
-          audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(err => {
-            botonAudioCliente.classList.remove('oculto');
-            estadoClienteLlamada('Audio remoto bloqueado por el navegador.', 'Tocá “Activar audio” para escuchar a soporte.');
-            console.warn('Audio remoto bloqueado en cliente:', err);
-          });
+          const pista = event.track;
+          if (pista && !streamRemotoCliente.getTracks().some(existing => existing.id === pista.id)) {
+            streamRemotoCliente.addTrack(pista);
+          }
+          audioRemotoCliente.muted = false;
+          audioRemotoCliente.volume = 1;
+          const reproducirRemoto = () => {
+            audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(err => {
+              botonAudioCliente.classList.remove('oculto');
+              estadoClienteLlamada('Audio remoto bloqueado por el navegador.', 'Tocá “Activar audio” para escuchar a soporte.');
+              console.warn('Audio remoto bloqueado en cliente:', err);
+            });
+          };
+          if (pista) pista.addEventListener('unmute', reproducirRemoto, { once: true });
+          reproducirRemoto();
         };
         pcLlamadaCliente.onicecandidate = event => {
           if (event.candidate && refLlamadaCliente) refLlamadaCliente.child('clientCandidates').push(event.candidate.toJSON());
@@ -2727,6 +2735,7 @@
       let adminStreamRemoto = null;
       let adminMusicaAudio = null;
       let adminMusicaContexto = null;
+      let adminMusicaGain = null;
       let adminMusicaTrack = null;
       let adminCallChatId = null;
       let adminRespuestaAplicada = false;
@@ -2784,6 +2793,7 @@
         adminStreamLocal = null;
         if (adminMusicaAudio) { adminMusicaAudio.pause(); adminMusicaAudio.currentTime = 0; adminMusicaAudio = null; }
         if (adminMusicaContexto) { adminMusicaContexto.close().catch(() => {}); adminMusicaContexto = null; }
+        adminMusicaGain = null;
         adminMusicaTrack = null;
         if (audioRemotoAdmin) audioRemotoAdmin.srcObject = null;
         adminStreamRemoto = null;
@@ -2828,13 +2838,21 @@
           // El administrador no reproduce su propio micrófono: el reproductor local recibe solo pistas remotas.
           adminStreamLocal.getAudioTracks().forEach(track => adminPcLlamada.addTrack(track, adminStreamLocal));
           adminPcLlamada.ontrack = event => {
-            const pistas = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
-            pistas.forEach(pista => { if (!adminStreamRemoto.getTracks().some(existing => existing.id === pista.id)) adminStreamRemoto.addTrack(pista); });
-            audioRemotoAdmin.play().then(() => botonAudioAdmin.classList.add('oculto')).catch(err => {
-              botonAudioAdmin.classList.remove('oculto');
-              estadoLlamadaAdmin.textContent = 'El audio fue bloqueado. Tocá “Activar audio”.';
-              console.warn('Audio remoto bloqueado en admin:', err);
-            });
+            const pista = event.track;
+            if (pista && !adminStreamRemoto.getTracks().some(existing => existing.id === pista.id)) {
+              adminStreamRemoto.addTrack(pista);
+            }
+            audioRemotoAdmin.muted = false;
+            audioRemotoAdmin.volume = 1;
+            const reproducirRemoto = () => {
+              audioRemotoAdmin.play().then(() => botonAudioAdmin.classList.add('oculto')).catch(err => {
+                botonAudioAdmin.classList.remove('oculto');
+                estadoLlamadaAdmin.textContent = 'El audio fue bloqueado. Tocá “Activar audio”.';
+                console.warn('Audio remoto bloqueado en admin:', err);
+              });
+            };
+            if (pista) pista.addEventListener('unmute', reproducirRemoto, { once: true });
+            reproducirRemoto();
           };
           adminPcLlamada.onicecandidate = event => {
             if (event.candidate && adminCallRef) adminCallRef.child('adminCandidates').push(event.candidate.toJSON());
@@ -2855,19 +2873,37 @@
             }
           };
 
-          // La canción se envía como pista independiente, separada del micrófono.
+          // La música se negocia desde el inicio como una pista WebRTC propia.
+          // La pista queda siempre habilitada y una ganancia en cero la mantiene en silencio
+          // hasta que soporte pulse "Poner canción". Así no hace falta renegociar la llamada.
           if (audioPausaDataUrlActual && (window.AudioContext || window.webkitAudioContext)) {
             adminMusicaAudio = new Audio(audioPausaDataUrlActual);
             adminMusicaAudio.loop = true;
             adminMusicaAudio.preload = 'auto';
+            adminMusicaAudio.volume = 1;
+            adminMusicaAudio.muted = false;
+
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             adminMusicaContexto = new AudioContextClass();
             const fuente = adminMusicaContexto.createMediaElementSource(adminMusicaAudio);
+            adminMusicaGain = adminMusicaContexto.createGain();
+            adminMusicaGain.gain.value = 0;
+
             const destino = adminMusicaContexto.createMediaStreamDestination();
-            fuente.connect(destino);
-            fuente.connect(adminMusicaContexto.destination);
+            fuente.connect(adminMusicaGain);
+            adminMusicaGain.connect(destino);
+            adminMusicaGain.connect(adminMusicaContexto.destination);
+
             adminMusicaTrack = destino.stream.getAudioTracks()[0];
-            if (adminMusicaTrack) { adminMusicaTrack.enabled = false; adminPcLlamada.addTrack(adminMusicaTrack, destino.stream); }
+            if (adminMusicaTrack) {
+              adminMusicaTrack.enabled = true;
+              adminMusicaTrack.contentHint = 'music';
+              adminPcLlamada.addTrack(adminMusicaTrack, destino.stream);
+            } else {
+              throw new Error('No se pudo crear la pista de música para la llamada.');
+            }
+          } else {
+            console.warn('No hay MP3 cargado o el navegador no admite AudioContext para enviar música.');
           }
 
           adminCallCandidatesRef = adminCallRef.child('clientCandidates');
@@ -2982,28 +3018,37 @@
       });
       botonMusicaAdmin.addEventListener('click', async () => {
         if (!adminPcLlamada) return;
-        if (!adminMusicaAudio || !adminMusicaContexto || !adminMusicaTrack) {
-          estadoLlamadaAdmin.textContent = 'Primero cargá un MP3 desde Editar sitio.';
+        if (!adminMusicaAudio || !adminMusicaContexto || !adminMusicaGain || !adminMusicaTrack) {
+          estadoLlamadaAdmin.textContent = 'No hay un MP3 listo para enviar. Revisá Editar sitio.';
           return;
         }
         try {
+          await adminMusicaContexto.resume();
           if (!adminMusicaActiva) {
-            await adminMusicaContexto.resume();
-            adminMusicaTrack.enabled = true;
+            adminMusicaAudio.currentTime = 0;
             await adminMusicaAudio.play();
+            adminMusicaGain.gain.cancelScheduledValues(adminMusicaContexto.currentTime);
+            adminMusicaGain.gain.setTargetAtTime(1, adminMusicaContexto.currentTime, 0.04);
             adminMusicaActiva = true;
             botonMusicaAdmin.textContent = '🎵 Quitar canción';
+            estadoLlamadaAdmin.textContent = 'Canción enviada al cliente y reproducida localmente.';
           } else {
-            adminMusicaTrack.enabled = false;
+            adminMusicaGain.gain.cancelScheduledValues(adminMusicaContexto.currentTime);
+            adminMusicaGain.gain.setTargetAtTime(0, adminMusicaContexto.currentTime, 0.025);
             adminMusicaAudio.pause();
             adminMusicaAudio.currentTime = 0;
             adminMusicaActiva = false;
             botonMusicaAdmin.textContent = '🎵 Poner canción';
+            estadoLlamadaAdmin.textContent = 'Canción detenida.';
           }
         } catch (err) {
-          adminMusicaTrack.enabled = false;
+          if (adminMusicaGain && adminMusicaContexto) {
+            adminMusicaGain.gain.setTargetAtTime(0, adminMusicaContexto.currentTime, 0.025);
+          }
+          if (adminMusicaAudio) adminMusicaAudio.pause();
           adminMusicaActiva = false;
-          estadoLlamadaAdmin.textContent = 'No se pudo reproducir la canción: ' + (err.message || err);
+          botonMusicaAdmin.textContent = '🎵 Poner canción';
+          estadoLlamadaAdmin.textContent = 'No se pudo enviar la canción: ' + (err.message || err);
         }
       });
 
