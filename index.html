@@ -876,6 +876,21 @@
     line-height: 1.4;
   }
 
+  .editor-check-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:var(--text);
+    font-size:.86rem;
+    cursor:pointer;
+  }
+  .editor-check-row input{
+    width:18px;
+    height:18px;
+    accent-color:var(--accent);
+    cursor:pointer;
+  }
+
   .editor-agregar-btn{
     align-self: flex-start;
     background: none;
@@ -1262,6 +1277,7 @@
             <button class="principal" id="soporte-elegir-chat" type="button">💬 Chat por mensajes</button>
             <button class="principal" id="soporte-elegir-llamada" type="button">📞 Llamada en vivo</button>
           </div>
+          <p class="editor-ayuda oculto" id="soporte-llamadas-aviso" style="margin-top:12px;">En este momento las llamadas están desactivadas. Podés comunicarte por mensajes.</p>
           <p class="editor-ayuda" style="margin-top:12px;">Para cualquiera de las dos opciones necesitás ingresar o crear tu usuario de soporte.</p>
         </div>
         <div id="soporte-auth-opciones" class="oculto">
@@ -1411,6 +1427,17 @@
               <button class="editor-agregar-btn" id="editor-soporte-agregar-boton" type="button">+ Agregar botón</button>
               <p class="editor-ayuda">Cada botón necesita un texto y un enlace. Se aceptan enlaces http://, https://, mailto: y tel:. Para WhatsApp podés usar, por ejemplo, https://wa.me/549...</p>
             </div>
+          </div>
+
+          <div class="editor-seccion">
+            <div class="editor-seccion-cabecera">
+              <span>LLAMADAS DE VOZ</span>
+            </div>
+            <label class="editor-check-row">
+              <input type="checkbox" id="editor-llamadas-habilitadas" checked>
+              <span>Permitir que los clientes soliciten llamadas en vivo</span>
+            </label>
+            <p class="editor-ayuda">Al desactivar esta opción, desaparece el botón de llamada en la web y los clientes solo podrán comunicarse por mensajes. Las llamadas que ya estén conectadas pueden continuar.</p>
           </div>
 
           <div class="editor-seccion">
@@ -1566,6 +1593,7 @@
     // ---- Sonido de notificación (beep corto, generado en el navegador: no
     // depende de ningún archivo de audio externo) ----
     let contextoAudioNotificaciones = null;
+    let intervaloTonoLlamadaAdmin = null;
 
     function prepararAudioNotificaciones(){
       try {
@@ -1598,6 +1626,49 @@
       } catch (err) { /* el navegador puede bloquear audio sin interacción previa */ }
     }
 
+    // Timbre repetido de llamada entrante para el panel del administrador.
+    // Se genera con Web Audio, así que no necesita subir un archivo de sonido.
+    function reproducirTonoLlamadaAdmin(){
+      try {
+        prepararAudioNotificaciones();
+        const ctx = contextoAudioNotificaciones;
+        if (!ctx || ctx.state !== 'running') return;
+
+        [0, 0.42].forEach(inicio => {
+          [660, 880].forEach(frecuencia => {
+            const oscilador = ctx.createOscillator();
+            const ganancia = ctx.createGain();
+            const comienzo = ctx.currentTime + inicio;
+            oscilador.type = 'sine';
+            oscilador.frequency.setValueAtTime(frecuencia, comienzo);
+            ganancia.gain.setValueAtTime(0.0001, comienzo);
+            ganancia.gain.exponentialRampToValueAtTime(0.13, comienzo + 0.025);
+            ganancia.gain.setValueAtTime(0.13, comienzo + 0.22);
+            ganancia.gain.exponentialRampToValueAtTime(0.0001, comienzo + 0.32);
+            oscilador.connect(ganancia);
+            ganancia.connect(ctx.destination);
+            oscilador.start(comienzo);
+            oscilador.stop(comienzo + 0.33);
+          });
+        });
+      } catch (err) {
+        console.warn('No se pudo reproducir el timbre de llamada:', err);
+      }
+    }
+
+    function iniciarTonoLlamadaAdmin(){
+      if (intervaloTonoLlamadaAdmin !== null) return;
+      reproducirTonoLlamadaAdmin();
+      intervaloTonoLlamadaAdmin = setInterval(reproducirTonoLlamadaAdmin, 1900);
+    }
+
+    function detenerTonoLlamadaAdmin(){
+      if (intervaloTonoLlamadaAdmin !== null) {
+        clearInterval(intervaloTonoLlamadaAdmin);
+        intervaloTonoLlamadaAdmin = null;
+      }
+    }
+
     // =====================================================================
     // CONTENIDO DEL SITIO ("Más información") — editable desde el panel admin
     // y guardado en Firebase, en soporte_sitio/datos
@@ -1607,6 +1678,7 @@
 
     let turnAppNameActual = '';
     let turnApiKeyActual = '';
+    let llamadasHabilitadasActuales = true;
 
     function actualizarCredencialesTURN(datos){
       let app = String(datos && datos.turnAppName || '').trim().toLowerCase();
@@ -1789,6 +1861,7 @@
       intro: 'Disfrutá de películas, series, canales en vivo, deportes, contenido infantil, música, noticias y mucho más, todo en un solo lugar y pensado para toda la familia.',
       precioMonto: '$5.000',
       precioPeriodo: 'por mes · hasta 4 dispositivos en simultáneo',
+      llamadasHabilitadas: true,
       footerImg: 'https://i.imgur.com/2LUhOX6.png',
       footerDerechos: 'Derechos Servicio De TV 2026',
       footerContacto: 'Contacto: Numero - Gmail',
@@ -2018,6 +2091,12 @@
 
     function renderSitio(datos){
       if (!datos) return;
+
+      llamadasHabilitadasActuales = datos.llamadasHabilitadas !== false;
+      const botonElegirLlamada = document.getElementById('soporte-elegir-llamada');
+      const avisoLlamadasDesactivadas = document.getElementById('soporte-llamadas-aviso');
+      if (botonElegirLlamada) botonElegirLlamada.classList.toggle('oculto', !llamadasHabilitadasActuales);
+      if (avisoLlamadasDesactivadas) avisoLlamadasDesactivadas.classList.toggle('oculto', llamadasHabilitadasActuales);
 
       actualizarAudioPausa(datos);
       actualizarCredencialesTURN(datos);
@@ -2317,6 +2396,11 @@
     }
     async function solicitarLlamadaCliente(){
       if (!refLlamadaCliente || modoSoporteElegido !== 'llamada' || pcLlamadaCliente || procesandoOfertaCliente) return;
+      if (!llamadasHabilitadasActuales) {
+        mostrarModoCliente('chat');
+        estadoClienteLlamada('Las llamadas están desactivadas. Podés continuar por mensajes.');
+        return;
+      }
       botonColgarCliente.disabled = false;
       estadoClienteLlamada('Solicitando permiso para usar el micrófono…');
       ayudaLlamadaCliente.textContent = '';
@@ -2428,11 +2512,13 @@
         if (llamada.status === 'requested' && modoSoporteElegido === 'llamada') { actualizarUIllamadaCliente('requested'); return; }
         if (llamada.status === 'accepted' && llamada.offer && modoSoporteElegido === 'llamada') { responderOfertaSoporte(llamada); return; }
         if (llamada.status === 'active' && pcLlamadaCliente) { clienteLlamadaActiva = true; actualizarUIllamadaCliente('active'); return; }
-        if (['rejected','failed','ended'].includes(llamada.status) &&
+        if (['rejected','failed','ended','disabled'].includes(llamada.status) &&
             (pcLlamadaCliente || streamLocalCliente || modoSoporteElegido === 'llamada')) {
-          const mensaje = llamada.status === 'rejected' ? 'Soporte rechazó o no pudo atender la llamada.' :
+          const mensaje = llamada.status === 'disabled' ? 'Las llamadas están desactivadas. Podés continuar por mensajes.' :
+            llamada.status === 'rejected' ? 'Soporte rechazó o no pudo atender la llamada.' :
             llamada.status === 'failed' ? (llamada.error || 'No se pudo conectar el audio.') : 'La llamada fue finalizada.';
           limpiarLlamadaCliente(mensaje, llamada.status);
+          if (llamada.status === 'disabled') mostrarModoCliente('chat');
         }
       });
     }
@@ -2486,7 +2572,7 @@
       vistaChat.classList.remove('modo-llamada');
     }
     function elegirModoSoporte(modo){
-      modoSoporteElegido = modo === 'llamada' ? 'llamada' : 'chat';
+      modoSoporteElegido = modo === 'llamada' && llamadasHabilitadasActuales ? 'llamada' : 'chat';
       const usuarioGuardado = localStorage.getItem('soporte_usuario');
       const chatIdGuardado = localStorage.getItem('soporte_chat_id');
       if (usuarioGuardado && chatIdGuardado) { entrarAlChat(chatIdGuardado, usuarioGuardado); return; }
@@ -2844,6 +2930,7 @@
       }
 
       function limpiarLlamadaAdmin(mensaje, reanudarMusicaPausa = true){
+        detenerTonoLlamadaAdmin();
         if (adminCallRef && adminMusicaActiva) adminCallRef.update({ musicActive: false, musicStartedAt: null }).catch(() => {});
         if (adminCallRef) adminCallRef.off('value');
         if (adminCallCandidatesRef) adminCallCandidatesRef.off();
@@ -2872,6 +2959,7 @@
       }
 
       async function aceptarSolicitudLlamadaAdmin(){
+        detenerTonoLlamadaAdmin();
         const id = adminCallChatId || chatSeleccionado;
         if (!id || adminPcLlamada) return;
         adminCallChatId = id;
@@ -2991,6 +3079,7 @@
       }
 
       function rechazarSolicitudLlamadaAdmin(){
+        detenerTonoLlamadaAdmin();
         const id = adminCallChatId || chatSeleccionado;
         if (id) db.ref('soporte_llamadas/' + id).update({
           status: 'rejected', endedBy: 'admin', endedAt: firebase.database.ServerValue.TIMESTAMP
@@ -2999,6 +3088,7 @@
       }
 
       function colgarLlamadaAdmin(){
+        detenerTonoLlamadaAdmin();
         if (adminCallRef) adminCallRef.update({
           status: 'ended', endedBy: 'admin', endedAt: firebase.database.ServerValue.TIMESTAMP
         }).catch(err => console.warn('No se pudo finalizar la llamada:', err));
@@ -3008,12 +3098,44 @@
       let ultimaSolicitudAvisadaAdmin = null;
       function iniciarMonitorSolicitudesLlamadaAdmin(){
         if (adminSolicitudRef) return;
+
+        // Si se desactivan las llamadas desde Editar sitio, cerrar las solicitudes
+        // que todavía estén esperando. Las llamadas ya conectadas no se cortan.
+        db.ref('soporte_sitio/datos/llamadasHabilitadas').on('value', snap => {
+          if (snap.val() !== false) return;
+          db.ref('soporte_llamadas').once('value').then(todasSnap => {
+            const todas = todasSnap.val() || {};
+            Object.entries(todas).forEach(([id, llamada]) => {
+              if (llamada && llamada.status === 'requested') {
+                db.ref('soporte_llamadas/' + id).update({
+                  status: 'disabled',
+                  endedBy: 'admin',
+                  endedAt: firebase.database.ServerValue.TIMESTAMP
+                }).catch(err => console.warn('No se pudo cerrar la solicitud de llamada:', err));
+              }
+            });
+          }).catch(err => console.warn('No se pudieron revisar las solicitudes pendientes:', err));
+        });
+
         adminSolicitudRef = db.ref('soporte_llamadas');
         adminSolicitudRef.on('value', snap => {
           const todas = snap.val() || {};
           const solicitudes = Object.entries(todas)
             .filter(([, llamada]) => llamada && llamada.status === 'requested')
             .sort((a,b) => (a[1].requestedAt || 0) - (b[1].requestedAt || 0));
+
+          if (!llamadasHabilitadasActuales) {
+            detenerTonoLlamadaAdmin();
+            solicitudes.forEach(([id]) => {
+              db.ref('soporte_llamadas/' + id).update({
+                status: 'disabled',
+                endedBy: 'admin',
+                endedAt: firebase.database.ServerValue.TIMESTAMP
+              }).catch(() => {});
+            });
+            return;
+          }
+
           if (adminPcLlamada) return;
           if (solicitudes.length) {
             const [id] = solicitudes[0];
@@ -3027,11 +3149,17 @@
             estadoLlamadaAdmin.textContent = 'Solicitud recibida.';
             document.getElementById('admin-overlay').classList.add('abierto');
             document.getElementById('admin-tab-soporte').click();
+            iniciarTonoLlamadaAdmin();
             if (ultimaSolicitudAvisadaAdmin !== id) {
               ultimaSolicitudAvisadaAdmin = id;
               mostrarAvisoAdmin('Solicitud de llamada', 'Un cliente está esperando que atiendas su llamada.');
             }
-          } else if (!adminPcLlamada && !adminCallChatId) {
+          } else if (!adminPcLlamada) {
+            detenerTonoLlamadaAdmin();
+            ultimaSolicitudAvisadaAdmin = null;
+            if (adminCallRef) adminCallRef.off('value');
+            adminCallRef = null;
+            adminCallChatId = null;
             actualizarUIllamadaAdmin('none');
           }
         }, err => console.error('No se pudieron recibir solicitudes de llamada:', err));
@@ -3401,6 +3529,7 @@
       const editorTurnAppEl = document.getElementById('editor-turn-app');
       const editorTurnApiKeyEl = document.getElementById('editor-turn-apikey');
       const editorAudioPausaInput = document.getElementById('editor-audio-pausa');
+      const editorLlamadasHabilitadasInput = document.getElementById('editor-llamadas-habilitadas');
       const editorAudioPausaEstado = document.getElementById('editor-audio-pausa-estado');
       const editorAudioPausaQuitar = document.getElementById('editor-audio-pausa-quitar');
       let audioPausaPendiente = null;
@@ -3599,6 +3728,7 @@
           document.getElementById('editor-footer-img').value = datosSitioActuales.footerImg || '';
           editorTurnAppEl.value = datosSitioActuales.turnAppName || '';
           editorTurnApiKeyEl.value = datosSitioActuales.turnApiKey || '';
+          editorLlamadasHabilitadasInput.checked = datosSitioActuales.llamadasHabilitadas !== false;
           cargarEditorBotonesSoporte(datosSitioActuales.mensajeInicialSoporte);
           audioPausaPendiente = null;
           quitarAudioPausaPendiente = false;
@@ -3681,6 +3811,7 @@
           footerDerechos: document.getElementById('editor-footer-derechos').value.trim(),
           footerContacto: document.getElementById('editor-footer-contacto').value.trim(),
           footerImg: document.getElementById('editor-footer-img').value.trim(),
+          llamadasHabilitadas: editorLlamadasHabilitadasInput.checked,
           audioPausaData: quitarAudioPausaPendiente
             ? ''
             : (audioPausaPendiente !== null ? audioPausaPendiente : (datosSitioActuales.audioPausaData || '')),
