@@ -2169,6 +2169,9 @@
     const avisoFinEl = document.getElementById('chat-aviso-fin');
     const salirBtn = document.getElementById('salir-chat');
 
+    const selectorSoporteEl = document.getElementById('soporte-eleccion');
+    const authOpcionesSoporteEl = document.getElementById('soporte-auth-opciones');
+    const descripcionModoSoporteEl = document.getElementById('soporte-modo-descripcion');
     const tabNueva = document.getElementById('tab-nueva');
     const tabIngresar = document.getElementById('tab-ingresar');
     const formRegistro = document.getElementById('form-registro');
@@ -2180,18 +2183,8 @@
     let refEstadoActual = null;
     let refEscribiendoAdmin = null;
 
-    const CONFIG_LLAMADA_RTC = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    };
-
-    function crearCandidatoRTC(datos){
-      try { return new RTCIceCandidate(datos); }
-      catch (err) { console.warn('Candidato ICE inválido:', err); return null; }
-    }
-
+    // ================= LLAMADAS: EL CLIENTE SOLICITA =================
+    let modoSoporteElegido = 'chat';
     let refLlamadaCliente = null;
     let refCandidatosAdminCliente = null;
     let pcLlamadaCliente = null;
@@ -2199,57 +2192,60 @@
     let streamRemotoCliente = null;
     let candidatosAdminPendientesCliente = [];
     let descripcionRemotaClienteLista = false;
-    let clienteContestandoLlamada = false;
+    let procesandoOfertaCliente = false;
     let clienteMicrofonoSilenciado = false;
     let clienteLlamadaActiva = false;
-    let clienteLlamadaChatId = null;
 
-    const panelLlamadaEntranteCliente = document.getElementById('cliente-llamada-entrante');
-    const panelLlamadaActivaCliente = document.getElementById('cliente-llamada-activa');
+    const panelLlamadaCliente = document.getElementById('cliente-llamada-panel');
     const audioRemotoCliente = document.getElementById('cliente-audio-remoto');
-    const estadoEntranteCliente = document.getElementById('cliente-llamada-entrante-estado');
     const estadoLlamadaCliente = document.getElementById('cliente-llamada-estado');
-    const botonContestarCliente = document.getElementById('cliente-llamada-contestar');
-    const botonRechazarCliente = document.getElementById('cliente-llamada-rechazar');
+    const ayudaLlamadaCliente = document.getElementById('cliente-llamada-ayuda');
     const botonMuteCliente = document.getElementById('cliente-llamada-mute');
     const botonAudioCliente = document.getElementById('cliente-llamada-audio');
     const botonColgarCliente = document.getElementById('cliente-llamada-colgar');
 
-    function actualizarUIllamadaCliente(estado){
-      panelLlamadaEntranteCliente.classList.toggle('oculto', estado !== 'entrante');
-      panelLlamadaActivaCliente.classList.toggle('oculto', estado !== 'activa');
-      if (estado === 'entrante') estadoEntranteCliente.textContent = 'Esperando que atiendas…';
-      if (estado === 'activa') estadoLlamadaCliente.textContent = 'Llamada conectada. Podés silenciar tu micrófono o colgar.';
+    function mostrarModoCliente(modo){
+      modoSoporteElegido = modo === 'llamada' ? 'llamada' : 'chat';
+      vistaChat.classList.toggle('modo-llamada', modoSoporteElegido === 'llamada');
+      panelLlamadaCliente.classList.toggle('oculto', modoSoporteElegido !== 'llamada');
     }
-
+    function estadoClienteLlamada(texto, ayuda = ''){
+      estadoLlamadaCliente.textContent = texto;
+      ayudaLlamadaCliente.textContent = ayuda;
+    }
+    function actualizarUIllamadaCliente(estado){
+      panelLlamadaCliente.classList.toggle('oculto', modoSoporteElegido !== 'llamada');
+      if (estado === 'requested') estadoClienteLlamada('Solicitud enviada. Esperando que soporte atienda…');
+      else if (estado === 'connecting') estadoClienteLlamada('Soporte atendió. Conectando audio…');
+      else if (estado === 'active') estadoClienteLlamada('Llamada conectada. Ya podés hablar con soporte.');
+      else if (estado === 'ended') estadoClienteLlamada('La llamada finalizó.');
+      else if (estado === 'rejected') estadoClienteLlamada('Soporte no pudo atender la llamada.');
+      else if (estado === 'failed') estadoClienteLlamada('No se pudo conectar la llamada.');
+      else if (estado === 'error') estadoClienteLlamada('No se pudo iniciar la llamada.');
+    }
+    function crearCandidatoRTC(datos){
+      try { return new RTCIceCandidate(datos); }
+      catch (err) { console.warn('Candidato ICE inválido:', err); return null; }
+    }
     async function agregarCandidatoCliente(datos){
       const candidato = crearCandidatoRTC(datos);
       if (!candidato || !pcLlamadaCliente) return;
-      if (!descripcionRemotaClienteLista) {
-        candidatosAdminPendientesCliente.push(candidato);
-        return;
-      }
+      if (!descripcionRemotaClienteLista) { candidatosAdminPendientesCliente.push(candidato); return; }
       try { await pcLlamadaCliente.addIceCandidate(candidato); }
-      catch (err) { console.warn('No se pudo agregar ICE del administrador:', err); }
+      catch (err) { console.warn('No se pudo agregar ICE de soporte:', err); }
     }
-
     async function vaciarCandidatosAdminCliente(){
       if (!pcLlamadaCliente || !descripcionRemotaClienteLista) return;
       const pendientes = candidatosAdminPendientesCliente.splice(0);
       for (const candidato of pendientes) {
         try { await pcLlamadaCliente.addIceCandidate(candidato); }
-        catch (err) { console.warn('No se pudo agregar ICE pendiente del administrador:', err); }
+        catch (err) { console.warn('No se pudo agregar ICE pendiente de soporte:', err); }
       }
     }
-
-    function limpiarLlamadaCliente(mensaje){
+    function limpiarLlamadaCliente(mensaje, estado = 'ended'){
       if (refCandidatosAdminCliente) refCandidatosAdminCliente.off();
       refCandidatosAdminCliente = null;
-      if (pcLlamadaCliente) {
-        pcLlamadaCliente.ontrack = null;
-        pcLlamadaCliente.onicecandidate = null;
-        pcLlamadaCliente.close();
-      }
+      if (pcLlamadaCliente) { pcLlamadaCliente.ontrack = null; pcLlamadaCliente.onicecandidate = null; pcLlamadaCliente.close(); }
       pcLlamadaCliente = null;
       if (streamLocalCliente) streamLocalCliente.getTracks().forEach(track => track.stop());
       streamLocalCliente = null;
@@ -2257,165 +2253,138 @@
       streamRemotoCliente = null;
       candidatosAdminPendientesCliente = [];
       descripcionRemotaClienteLista = false;
-      clienteContestandoLlamada = false;
+      procesandoOfertaCliente = false;
       clienteMicrofonoSilenciado = false;
       clienteLlamadaActiva = false;
       botonMuteCliente.textContent = 'Silenciar micrófono';
-      actualizarUIllamadaCliente('ninguna');
-      if (mensaje) estadoLlamadaCliente.textContent = mensaje;
+      botonMuteCliente.disabled = true;
+      botonAudioCliente.classList.add('oculto');
+      if (modoSoporteElegido === 'llamada') actualizarUIllamadaCliente(estado);
+      if (mensaje) ayudaLlamadaCliente.textContent = mensaje;
       if (clienteChatEstaPausado) reproducirMusicaPausaCliente();
     }
-
-    async function contestarLlamadaCliente(){
-      if (clienteContestandoLlamada || pcLlamadaCliente || !refLlamadaCliente) return;
-      clienteContestandoLlamada = true;
-      botonContestarCliente.disabled = true;
-      estadoEntranteCliente.textContent = 'Solicitando permiso para usar el micrófono…';
-
+    async function solicitarLlamadaCliente(){
+      if (!refLlamadaCliente || modoSoporteElegido !== 'llamada' || pcLlamadaCliente || procesandoOfertaCliente) return;
+      botonColgarCliente.disabled = false;
+      estadoClienteLlamada('Solicitando permiso para usar el micrófono…');
+      ayudaLlamadaCliente.textContent = '';
       try {
-        const snap = await refLlamadaCliente.once('value');
-        const llamada = snap.val();
-        if (!llamada || llamada.status !== 'calling' || !llamada.offer) {
-          throw new Error('La llamada ya no está disponible.');
-        }
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Este navegador no permite usar el micrófono. Abrí la web con HTTPS y habilitá el micrófono.');
-        }
-
-        streamLocalCliente = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          video: false
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('El navegador no habilita el micrófono. Usá la web con HTTPS y aceptá el permiso.');
+        if (!streamLocalCliente) streamLocalCliente = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false
         });
-
-        pcLlamadaCliente = new RTCPeerConnection(CONFIG_LLAMADA_RTC);
+        streamLocalCliente.getAudioTracks().forEach(track => { track.enabled = false; });
+        const actual = (await refLlamadaCliente.once('value')).val();
+        if (actual && ['requested','accepted','active'].includes(actual.status)) {
+          actualizarUIllamadaCliente(actual.status === 'requested' ? 'requested' : 'connecting');
+          return;
+        }
+        await refLlamadaCliente.set({ status: 'requested', caller: 'cliente', requestedAt: firebase.database.ServerValue.TIMESTAMP });
+        actualizarUIllamadaCliente('requested');
+        botonMuteCliente.disabled = true;
+      } catch (err) {
+        console.error('No se pudo solicitar la llamada:', err);
+        limpiarLlamadaCliente(err.message || 'No se pudo acceder al micrófono.', 'error');
+        ayudaLlamadaCliente.textContent = 'Revisá el permiso del micrófono y volvé a elegir Llamada.';
+      }
+    }
+    async function responderOfertaSoporte(llamada){
+      if (procesandoOfertaCliente || pcLlamadaCliente || !refLlamadaCliente || !llamada || !llamada.offer) return;
+      procesandoOfertaCliente = true;
+      estadoClienteLlamada('Soporte aceptó. Preparando el micrófono…');
+      try {
+        if (!streamLocalCliente) {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Este navegador no permite usar el micrófono. Abrí la web con HTTPS.');
+          streamLocalCliente = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false
+          });
+        }
+        const configuracion = await obtenerConfiguracionRTCPeer();
+        pcLlamadaCliente = new RTCPeerConnection(configuracion);
         streamRemotoCliente = new MediaStream();
         audioRemotoCliente.srcObject = streamRemotoCliente;
-        streamLocalCliente.getAudioTracks().forEach(track => pcLlamadaCliente.addTrack(track, streamLocalCliente));
-
+        streamLocalCliente.getAudioTracks().forEach(track => {
+          track.enabled = !clienteMicrofonoSilenciado;
+          pcLlamadaCliente.addTrack(track, streamLocalCliente);
+        });
         pcLlamadaCliente.ontrack = event => {
-          const tracks = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
-          tracks.forEach(track => {
-            if (!streamRemotoCliente.getTracks().some(existing => existing.id === track.id)) {
-              streamRemotoCliente.addTrack(track);
-            }
-          });
+          const pistas = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
+          pistas.forEach(pista => { if (!streamRemotoCliente.getTracks().some(existing => existing.id === pista.id)) streamRemotoCliente.addTrack(pista); });
           audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(err => {
             botonAudioCliente.classList.remove('oculto');
-            estadoLlamadaCliente.textContent = 'El navegador bloqueó el audio. Tocá “Activar audio”.';
-            console.warn('El navegador bloqueó el audio remoto del cliente:', err);
+            estadoClienteLlamada('Audio remoto bloqueado por el navegador.', 'Tocá “Activar audio” para escuchar a soporte.');
+            console.warn('Audio remoto bloqueado en cliente:', err);
           });
         };
-
         pcLlamadaCliente.onicecandidate = event => {
-          if (event.candidate && refLlamadaCliente) {
-            refLlamadaCliente.child('clientCandidates').push(event.candidate.toJSON());
+          if (event.candidate && refLlamadaCliente) refLlamadaCliente.child('clientCandidates').push(event.candidate.toJSON());
+        };
+        pcLlamadaCliente.onconnectionstatechange = () => {
+          if (!pcLlamadaCliente) return;
+          if (pcLlamadaCliente.connectionState === 'connected') {
+            clienteLlamadaActiva = true;
+            actualizarUIllamadaCliente('active');
+            botonMuteCliente.disabled = false;
+          } else if (pcLlamadaCliente.connectionState === 'failed') {
+            estadoClienteLlamada('No se pudo conectar el audio.', 'La red puede necesitar TURN. Configurá TURN en Editar sitio.');
           }
         };
-
         refCandidatosAdminCliente = refLlamadaCliente.child('adminCandidates');
         refCandidatosAdminCliente.off();
-        refCandidatosAdminCliente.on('child_added', candidateSnap => {
-          const datos = candidateSnap.val();
-          if (datos) agregarCandidatoCliente(datos);
-        });
-
+        refCandidatosAdminCliente.on('child_added', candidateSnap => { const datos = candidateSnap.val(); if (datos) agregarCandidatoCliente(datos); });
         await pcLlamadaCliente.setRemoteDescription(new RTCSessionDescription(llamada.offer));
         descripcionRemotaClienteLista = true;
         await vaciarCandidatosAdminCliente();
-
         const respuesta = await pcLlamadaCliente.createAnswer();
         await pcLlamadaCliente.setLocalDescription(respuesta);
         await refLlamadaCliente.update({
           answer: { type: pcLlamadaCliente.localDescription.type, sdp: pcLlamadaCliente.localDescription.sdp },
-          status: 'active',
-          answeredAt: firebase.database.ServerValue.TIMESTAMP
+          status: 'active', answeredAt: firebase.database.ServerValue.TIMESTAMP
         });
-
         clienteLlamadaActiva = true;
-        detenerMusicaPausaCliente();
-        clienteMicrofonoSilenciado = false;
-        botonMuteCliente.textContent = 'Silenciar micrófono';
-        actualizarUIllamadaCliente('activa');
-        estadoLlamadaCliente.textContent = 'Conectando audio…';
+        botonMuteCliente.disabled = false;
+        botonMuteCliente.textContent = clienteMicrofonoSilenciado ? 'Activar micrófono' : 'Silenciar micrófono';
+        actualizarUIllamadaCliente('connecting');
       } catch (err) {
-        console.error('Error al contestar la llamada:', err);
-        estadoEntranteCliente.textContent = err.message || 'No se pudo iniciar la llamada.';
-        if (refLlamadaCliente) refLlamadaCliente.update({ status: 'failed', error: String(err.message || err) }).catch(() => {});
-        limpiarLlamadaCliente('No se pudo conectar la llamada.');
-      } finally {
-        botonContestarCliente.disabled = false;
-        clienteContestandoLlamada = false;
-      }
+        console.error('Error conectando llamada del cliente:', err);
+        if (refLlamadaCliente) refLlamadaCliente.update({ status: 'failed', error: String(err.message || err), endedBy: 'cliente' }).catch(() => {});
+        limpiarLlamadaCliente(err.message || 'No se pudo conectar el audio.', 'failed');
+      } finally { procesandoOfertaCliente = false; }
     }
-
-    function rechazarLlamadaCliente(){
-      if (refLlamadaCliente) refLlamadaCliente.update({
-        status: 'rejected',
-        endedBy: 'cliente',
-        endedAt: firebase.database.ServerValue.TIMESTAMP
-      }).catch(err => console.warn('No se pudo rechazar la llamada:', err));
-      limpiarLlamadaCliente('Llamada rechazada.');
-    }
-
     function colgarLlamadaCliente(){
       if (refLlamadaCliente) refLlamadaCliente.update({
-        status: 'ended',
-        endedBy: 'cliente',
-        endedAt: firebase.database.ServerValue.TIMESTAMP
-      }).catch(err => console.warn('No se pudo colgar la llamada:', err));
-      limpiarLlamadaCliente('Llamada finalizada.');
+        status: 'ended', endedBy: 'cliente', endedAt: firebase.database.ServerValue.TIMESTAMP
+      }).catch(err => console.warn('No se pudo cancelar la llamada:', err));
+      limpiarLlamadaCliente('Finalizaste la llamada.', 'ended');
     }
-
     function escucharLlamadasCliente(chatId){
       if (refLlamadaCliente) refLlamadaCliente.off();
       if (refCandidatosAdminCliente) refCandidatosAdminCliente.off();
-      limpiarLlamadaCliente();
-      clienteLlamadaChatId = chatId;
       refLlamadaCliente = db.ref('soporte_llamadas/' + chatId);
       refLlamadaCliente.on('value', snap => {
         const llamada = snap.val();
-        if (!llamada) {
-          if (pcLlamadaCliente) limpiarLlamadaCliente();
-          return;
-        }
-
-        if (llamada.status === 'calling' && llamada.offer && !pcLlamadaCliente && !clienteContestandoLlamada) {
-          overlay.classList.add('abierto');
-          vistaAuth.classList.add('oculto');
-          vistaChat.classList.remove('oculto');
-          actualizarUIllamadaCliente('entrante');
-          return;
-        }
-
-        if (llamada.status === 'active' && pcLlamadaCliente) {
-          clienteLlamadaActiva = true;
-          actualizarUIllamadaCliente('activa');
-          return;
-        }
-
-        if (['ended', 'rejected', 'failed'].includes(llamada.status) &&
-            (pcLlamadaCliente || clienteContestandoLlamada || !panelLlamadaEntranteCliente.classList.contains('oculto'))) {
-          const mensaje = llamada.status === 'rejected' ? 'Llamada rechazada.' :
-            llamada.status === 'failed' ? 'No se pudo conectar la llamada.' : 'El administrador finalizó la llamada.';
-          limpiarLlamadaCliente(mensaje);
+        if (!llamada) return;
+        if (llamada.status === 'requested' && modoSoporteElegido === 'llamada') { actualizarUIllamadaCliente('requested'); return; }
+        if (llamada.status === 'accepted' && llamada.offer && modoSoporteElegido === 'llamada') { responderOfertaSoporte(llamada); return; }
+        if (llamada.status === 'active' && pcLlamadaCliente) { clienteLlamadaActiva = true; actualizarUIllamadaCliente('active'); return; }
+        if (['rejected','failed','ended'].includes(llamada.status) &&
+            (pcLlamadaCliente || streamLocalCliente || modoSoporteElegido === 'llamada')) {
+          const mensaje = llamada.status === 'rejected' ? 'Soporte rechazó o no pudo atender la llamada.' :
+            llamada.status === 'failed' ? (llamada.error || 'No se pudo conectar el audio.') : 'La llamada fue finalizada.';
+          limpiarLlamadaCliente(mensaje, llamada.status);
         }
       });
     }
-
-    botonContestarCliente.addEventListener('click', contestarLlamadaCliente);
-    botonRechazarCliente.addEventListener('click', rechazarLlamadaCliente);
-    botonColgarCliente.addEventListener('click', colgarLlamadaCliente);
-    botonAudioCliente.addEventListener('click', () => {
-      audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(() => {
-        estadoLlamadaCliente.textContent = 'No se pudo activar el audio remoto.';
-      });
-    });
     botonMuteCliente.addEventListener('click', () => {
-      if (!streamLocalCliente) return;
+      if (!streamLocalCliente || !clienteLlamadaActiva) return;
       clienteMicrofonoSilenciado = !clienteMicrofonoSilenciado;
       streamLocalCliente.getAudioTracks().forEach(track => { track.enabled = !clienteMicrofonoSilenciado; });
       botonMuteCliente.textContent = clienteMicrofonoSilenciado ? 'Activar micrófono' : 'Silenciar micrófono';
     });
+    botonAudioCliente.addEventListener('click', () => {
+      audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(() => estadoClienteLlamada('No se pudo activar el audio remoto.'));
+    });
+    botonColgarCliente.addEventListener('click', colgarLlamadaCliente);
     let refEscribiendoClienteSalida = null;
     let clienteSincronizado = false; // pasa a true después de cargar el historial, para no sonar con mensajes viejos
 
@@ -2436,9 +2405,38 @@
       formRegistro.classList.add('oculto');
     });
 
+    function mostrarSelectorSoporte(){
+      modoSoporteElegido = 'chat';
+      selectorSoporteEl.classList.remove('oculto');
+      authOpcionesSoporteEl.classList.add('oculto');
+      vistaChat.classList.add('oculto');
+      vistaAuth.classList.remove('oculto');
+      panelLlamadaCliente.classList.add('oculto');
+      vistaChat.classList.remove('modo-llamada');
+    }
+    function elegirModoSoporte(modo){
+      modoSoporteElegido = modo === 'llamada' ? 'llamada' : 'chat';
+      const usuarioGuardado = localStorage.getItem('soporte_usuario');
+      const chatIdGuardado = localStorage.getItem('soporte_chat_id');
+      if (usuarioGuardado && chatIdGuardado) { entrarAlChat(chatIdGuardado, usuarioGuardado); return; }
+      selectorSoporteEl.classList.add('oculto');
+      authOpcionesSoporteEl.classList.remove('oculto');
+      descripcionModoSoporteEl.textContent = modoSoporteElegido === 'llamada'
+        ? 'Elegiste llamada en vivo. Creá una cuenta o ingresá con tu usuario para solicitar que soporte te atienda.'
+        : 'Elegiste conversar por mensajes. Creá una cuenta o ingresá con tu usuario para abrir el chat.';
+      tabNueva.classList.add('activo');
+      tabIngresar.classList.remove('activo');
+      formRegistro.classList.remove('oculto');
+      formLogin.classList.add('oculto');
+    }
+    document.getElementById('soporte-elegir-chat').addEventListener('click', () => elegirModoSoporte('chat'));
+    document.getElementById('soporte-elegir-llamada').addEventListener('click', () => elegirModoSoporte('llamada'));
+    document.getElementById('soporte-volver-eleccion').addEventListener('click', mostrarSelectorSoporte);
+
     function mostrarAuth(){
       clienteChatEstaPausado = false;
       detenerMusicaPausaCliente();
+      if (pcLlamadaCliente || streamLocalCliente) limpiarLlamadaCliente('La llamada se cerró.', 'ended');
       vistaChat.classList.add('oculto');
       vistaAuth.classList.remove('oculto');
       estadoEl.classList.add('oculto');
@@ -2452,6 +2450,7 @@
       if (refEscribiendoAdmin) refEscribiendoAdmin.off();
       chatEscribiendoEl.classList.add('oculto');
       clienteSincronizado = false;
+      mostrarSelectorSoporte();
     }
 
     function pintarContenidoMensaje(div, msg){
@@ -2527,8 +2526,11 @@
       habilitarSonidoClientePorInteraccion();
       localStorage.setItem('soporte_chat_id', chatId);
 
+      selectorSoporteEl.classList.add('oculto');
+      authOpcionesSoporteEl.classList.add('oculto');
       vistaAuth.classList.add('oculto');
       vistaChat.classList.remove('oculto');
+      mostrarModoCliente(modoSoporteElegido);
       estadoEl.classList.remove('oculto');
       salirBtn.classList.remove('oculto');
       mensajesEl.innerHTML = '';
@@ -2555,7 +2557,6 @@
       refEstadoActual.off();
       refEstadoActual.on('value', snap => {
         if (!snap.exists()) {
-          // El admin borró la conversación
           clienteChatEstaPausado = false;
           detenerMusicaPausaCliente();
           localStorage.removeItem('soporte_usuario');
@@ -2563,14 +2564,13 @@
           mostrarAuth();
           return;
         }
-
         const estado = snap.val();
         clienteChatEstaPausado = estado === 'pausado';
         actualizarEstadoUI(estado);
-
         if (clienteChatEstaPausado) reproducirMusicaPausaCliente();
         else detenerMusicaPausaCliente();
       });
+      if (modoSoporteElegido === 'llamada') solicitarLlamadaCliente();
     }
 
     formRegistro.addEventListener('submit', async function(e){
@@ -2642,14 +2642,7 @@
 
       overlay.classList.add('abierto');
       habilitarSonidoClientePorInteraccion();
-
-      const usuarioGuardado = localStorage.getItem('soporte_usuario');
-      const chatIdGuardado = localStorage.getItem('soporte_chat_id');
-      if (usuarioGuardado && chatIdGuardado) {
-        entrarAlChat(chatIdGuardado, usuarioGuardado);
-      } else {
-        mostrarAuth();
-      }
+      mostrarSelectorSoporte();
     });
 
     document.getElementById('chat-sonido-btn').addEventListener('click', function(){
@@ -2658,13 +2651,14 @@
     });
 
     document.getElementById('cerrar-chat').addEventListener('click', function(){
-      if (pcLlamadaCliente || clienteContestandoLlamada) colgarLlamadaCliente();
+      if (pcLlamadaCliente || streamLocalCliente) colgarLlamadaCliente();
+      if (refLlamadaCliente) refLlamadaCliente.off();
       overlay.classList.remove('abierto');
       detenerMusicaPausaCliente();
     });
 
     salirBtn.addEventListener('click', function(){
-      if (pcLlamadaCliente || clienteContestandoLlamada) colgarLlamadaCliente();
+      if (pcLlamadaCliente || streamLocalCliente) colgarLlamadaCliente();
       if (refLlamadaCliente) refLlamadaCliente.off();
       clienteChatEstaPausado = false;
       detenerMusicaPausaCliente();
