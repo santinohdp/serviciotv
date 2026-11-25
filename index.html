@@ -1296,6 +1296,7 @@
           <div class="llamada-acciones">
             <button id="cliente-llamada-mute" type="button" disabled>Silenciar micrófono</button>
             <button id="cliente-llamada-audio" type="button" class="oculto">Activar audio</button>
+            <button id="cliente-llamada-musica-audio" type="button" class="oculto">Activar música</button>
             <button class="peligro" id="cliente-llamada-colgar" type="button">Cancelar / Colgar</button>
           </div>
           <span class="llamada-estado" id="cliente-llamada-ayuda"></span>
@@ -2202,7 +2203,10 @@
     const ayudaLlamadaCliente = document.getElementById('cliente-llamada-ayuda');
     const botonMuteCliente = document.getElementById('cliente-llamada-mute');
     const botonAudioCliente = document.getElementById('cliente-llamada-audio');
+    const botonMusicaCliente = document.getElementById('cliente-llamada-musica-audio');
     const botonColgarCliente = document.getElementById('cliente-llamada-colgar');
+    let clienteMusicaLlamadaActiva = false;
+    let clienteMusicaLlamadaInicio = 0;
 
     function mostrarModoCliente(modo){
       modoSoporteElegido = modo === 'llamada' ? 'llamada' : 'chat';
@@ -2212,6 +2216,53 @@
     function estadoClienteLlamada(texto, ayuda = ''){
       estadoLlamadaCliente.textContent = texto;
       ayudaLlamadaCliente.textContent = ayuda;
+    }
+    function detenerMusicaLlamadaCliente(){
+      clienteMusicaLlamadaActiva = false;
+      clienteMusicaLlamadaInicio = 0;
+      if (reproductorAudioPausaCliente) {
+        reproductorAudioPausaCliente.pause();
+        reproductorAudioPausaCliente.currentTime = 0;
+      }
+      if (botonMusicaCliente) botonMusicaCliente.classList.add('oculto');
+    }
+    function reproducirMusicaLlamadaCliente(inicio = Date.now()){
+      if (!reproductorAudioPausaCliente) {
+        estadoClienteLlamada('Soporte activó música, pero no hay un MP3 guardado en la web.');
+        return;
+      }
+      clienteMusicaLlamadaActiva = true;
+      clienteMusicaLlamadaInicio = Number(inicio) || Date.now();
+      const audio = reproductorAudioPausaCliente;
+      const comenzar = () => {
+        if (!clienteMusicaLlamadaActiva) return;
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          const retraso = Math.max(0, (Date.now() - clienteMusicaLlamadaInicio) / 1000);
+          audio.currentTime = retraso % audio.duration;
+        } else {
+          audio.currentTime = 0;
+        }
+        audio.play().then(() => {
+          if (botonMusicaCliente) botonMusicaCliente.classList.add('oculto');
+          estadoClienteLlamada('Llamada conectada. Música activada.');
+        }).catch(err => {
+          if (botonMusicaCliente) botonMusicaCliente.classList.remove('oculto');
+          estadoClienteLlamada('La música está lista.', 'Tocá “Activar música” para permitir que tu navegador la reproduzca.');
+          console.warn('El navegador bloqueó la música de la llamada:', err);
+        });
+      };
+      if (audio.readyState >= 1) comenzar();
+      else audio.addEventListener('loadedmetadata', comenzar, { once: true });
+    }
+    function sincronizarMusicaLlamadaCliente(llamada){
+      if (llamada && llamada.musicActive === true) {
+        if (!clienteMusicaLlamadaActiva) {
+          reproducirMusicaLlamadaCliente(llamada.musicStartedAt || Date.now());
+        }
+      } else if (clienteMusicaLlamadaActiva) {
+        detenerMusicaLlamadaCliente();
+        estadoClienteLlamada('La música fue detenida por soporte.');
+      }
     }
     function actualizarUIllamadaCliente(estado){
       panelLlamadaCliente.classList.toggle('oculto', modoSoporteElegido !== 'llamada');
@@ -2243,6 +2294,7 @@
       }
     }
     function limpiarLlamadaCliente(mensaje, estado = 'ended'){
+      detenerMusicaLlamadaCliente();
       if (refCandidatosAdminCliente) refCandidatosAdminCliente.off();
       refCandidatosAdminCliente = null;
       if (pcLlamadaCliente) { pcLlamadaCliente.ontrack = null; pcLlamadaCliente.onicecandidate = null; pcLlamadaCliente.close(); }
@@ -2372,6 +2424,7 @@
       refLlamadaCliente.on('value', snap => {
         const llamada = snap.val();
         if (!llamada) return;
+        sincronizarMusicaLlamadaCliente(llamada);
         if (llamada.status === 'requested' && modoSoporteElegido === 'llamada') { actualizarUIllamadaCliente('requested'); return; }
         if (llamada.status === 'accepted' && llamada.offer && modoSoporteElegido === 'llamada') { responderOfertaSoporte(llamada); return; }
         if (llamada.status === 'active' && pcLlamadaCliente) { clienteLlamadaActiva = true; actualizarUIllamadaCliente('active'); return; }
@@ -2391,6 +2444,16 @@
     });
     botonAudioCliente.addEventListener('click', () => {
       audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(() => estadoClienteLlamada('No se pudo activar el audio remoto.'));
+    });
+    botonMusicaCliente.addEventListener('click', () => {
+      if (!clienteMusicaLlamadaActiva || !reproductorAudioPausaCliente) return;
+      reproductorAudioPausaCliente.play().then(() => {
+        botonMusicaCliente.classList.add('oculto');
+        estadoClienteLlamada('Música activada.');
+      }).catch(err => {
+        estadoClienteLlamada('No se pudo reproducir la música.', 'Revisá el volumen del dispositivo y volvé a tocar Activar música.');
+        console.warn('No se pudo desbloquear la música de llamada:', err);
+      });
     });
     botonColgarCliente.addEventListener('click', colgarLlamadaCliente);
     let refEscribiendoClienteSalida = null;
@@ -2734,9 +2797,6 @@
       let adminStreamLocal = null;
       let adminStreamRemoto = null;
       let adminMusicaAudio = null;
-      let adminMusicaContexto = null;
-      let adminMusicaGain = null;
-      let adminMusicaTrack = null;
       let adminCallChatId = null;
       let adminRespuestaAplicada = false;
       let adminCandidatosPendientes = [];
@@ -2784,6 +2844,7 @@
       }
 
       function limpiarLlamadaAdmin(mensaje, reanudarMusicaPausa = true){
+        if (adminCallRef && adminMusicaActiva) adminCallRef.update({ musicActive: false, musicStartedAt: null }).catch(() => {});
         if (adminCallRef) adminCallRef.off('value');
         if (adminCallCandidatesRef) adminCallCandidatesRef.off();
         adminCallCandidatesRef = null;
@@ -2792,9 +2853,6 @@
         if (adminStreamLocal) adminStreamLocal.getTracks().forEach(track => track.stop());
         adminStreamLocal = null;
         if (adminMusicaAudio) { adminMusicaAudio.pause(); adminMusicaAudio.currentTime = 0; adminMusicaAudio = null; }
-        if (adminMusicaContexto) { adminMusicaContexto.close().catch(() => {}); adminMusicaContexto = null; }
-        adminMusicaGain = null;
-        adminMusicaTrack = null;
         if (audioRemotoAdmin) audioRemotoAdmin.srcObject = null;
         adminStreamRemoto = null;
         adminRespuestaAplicada = false;
@@ -2873,37 +2931,14 @@
             }
           };
 
-          // La música se negocia desde el inicio como una pista WebRTC propia.
-          // La pista queda siempre habilitada y una ganancia en cero la mantiene en silencio
-          // hasta que soporte pulse "Poner canción". Así no hace falta renegociar la llamada.
-          if (audioPausaDataUrlActual && (window.AudioContext || window.webkitAudioContext)) {
+          if (audioPausaDataUrlActual) {
             adminMusicaAudio = new Audio(audioPausaDataUrlActual);
             adminMusicaAudio.loop = true;
             adminMusicaAudio.preload = 'auto';
             adminMusicaAudio.volume = 1;
             adminMusicaAudio.muted = false;
-
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            adminMusicaContexto = new AudioContextClass();
-            const fuente = adminMusicaContexto.createMediaElementSource(adminMusicaAudio);
-            adminMusicaGain = adminMusicaContexto.createGain();
-            adminMusicaGain.gain.value = 0;
-
-            const destino = adminMusicaContexto.createMediaStreamDestination();
-            fuente.connect(adminMusicaGain);
-            adminMusicaGain.connect(destino);
-            adminMusicaGain.connect(adminMusicaContexto.destination);
-
-            adminMusicaTrack = destino.stream.getAudioTracks()[0];
-            if (adminMusicaTrack) {
-              adminMusicaTrack.enabled = true;
-              adminMusicaTrack.contentHint = 'music';
-              adminPcLlamada.addTrack(adminMusicaTrack, destino.stream);
-            } else {
-              throw new Error('No se pudo crear la pista de música para la llamada.');
-            }
           } else {
-            console.warn('No hay MP3 cargado o el navegador no admite AudioContext para enviar música.');
+            console.warn('No hay MP3 cargado en Editar sitio.');
           }
 
           adminCallCandidatesRef = adminCallRef.child('clientCandidates');
@@ -3017,38 +3052,34 @@
         botonMuteAdmin.textContent = adminMicrofonoSilenciado ? 'Activar micrófono' : 'Silenciar micrófono';
       });
       botonMusicaAdmin.addEventListener('click', async () => {
-        if (!adminPcLlamada) return;
-        if (!adminMusicaAudio || !adminMusicaContexto || !adminMusicaGain || !adminMusicaTrack) {
-          estadoLlamadaAdmin.textContent = 'No hay un MP3 listo para enviar. Revisá Editar sitio.';
+        if (!adminPcLlamada || !adminCallRef) return;
+        if (!adminMusicaAudio) {
+          estadoLlamadaAdmin.textContent = 'No hay un MP3 listo. Revisá Editar sitio y guardá la música.';
           return;
         }
         try {
-          await adminMusicaContexto.resume();
           if (!adminMusicaActiva) {
+            const inicio = Date.now();
+            await adminCallRef.update({ musicActive: true, musicStartedAt: inicio });
             adminMusicaAudio.currentTime = 0;
             await adminMusicaAudio.play();
-            adminMusicaGain.gain.cancelScheduledValues(adminMusicaContexto.currentTime);
-            adminMusicaGain.gain.setTargetAtTime(1, adminMusicaContexto.currentTime, 0.04);
             adminMusicaActiva = true;
             botonMusicaAdmin.textContent = '🎵 Quitar canción';
-            estadoLlamadaAdmin.textContent = 'Canción enviada al cliente y reproducida localmente.';
+            estadoLlamadaAdmin.textContent = 'Música activada. El cliente la reproduce desde su navegador.';
           } else {
-            adminMusicaGain.gain.cancelScheduledValues(adminMusicaContexto.currentTime);
-            adminMusicaGain.gain.setTargetAtTime(0, adminMusicaContexto.currentTime, 0.025);
+            await adminCallRef.update({ musicActive: false, musicStartedAt: null });
             adminMusicaAudio.pause();
             adminMusicaAudio.currentTime = 0;
             adminMusicaActiva = false;
             botonMusicaAdmin.textContent = '🎵 Poner canción';
-            estadoLlamadaAdmin.textContent = 'Canción detenida.';
+            estadoLlamadaAdmin.textContent = 'Música detenida.';
           }
         } catch (err) {
-          if (adminMusicaGain && adminMusicaContexto) {
-            adminMusicaGain.gain.setTargetAtTime(0, adminMusicaContexto.currentTime, 0.025);
-          }
-          if (adminMusicaAudio) adminMusicaAudio.pause();
+          if (adminCallRef) adminCallRef.update({ musicActive: false, musicStartedAt: null }).catch(() => {});
+          if (adminMusicaAudio) { adminMusicaAudio.pause(); adminMusicaAudio.currentTime = 0; }
           adminMusicaActiva = false;
           botonMusicaAdmin.textContent = '🎵 Poner canción';
-          estadoLlamadaAdmin.textContent = 'No se pudo enviar la canción: ' + (err.message || err);
+          estadoLlamadaAdmin.textContent = 'No se pudo activar la música: ' + (err.message || err);
         }
       });
 
