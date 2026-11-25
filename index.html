@@ -282,6 +282,20 @@
     color: var(--text-dim);
   }
 
+  /* ---------- LLAMADA DE VOZ EN VIVO ---------- */
+  .llamada-panel{display:flex;flex-direction:column;gap:10px;padding:12px 14px;margin:10px 14px;border:1px solid rgba(62,198,255,.35);border-radius:12px;background:rgba(62,198,255,.07);color:var(--text)}
+  .llamada-panel.oculto{display:none!important}
+  .llamada-titulo{font-family:'Orbitron',sans-serif;font-size:.78rem;color:var(--accent)}
+  .llamada-detalle{color:var(--text-dim);font-size:.82rem;line-height:1.4}
+  .llamada-acciones{display:flex;flex-wrap:wrap;gap:8px}
+  .llamada-acciones button{flex:1 1 120px;min-height:38px;border:1px solid var(--border);border-radius:9px;padding:8px 12px;background:var(--panel);color:var(--text);font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer}
+  .llamada-acciones button.principal{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:0;color:#06121c}
+  .llamada-acciones button.peligro{color:#ff7777;border-color:rgba(239,68,68,.45)}
+  .llamada-acciones button:disabled{opacity:.45;cursor:not-allowed}
+  .llamada-estado{min-height:1em;color:var(--text-dim);font-size:.76rem}
+  .llamada-audio-remoto{display:none}
+  @media(max-width:640px){.llamada-panel{margin:8px 10px}.llamada-acciones button{flex-basis:100%}}
+
   /* ---------- RESPONSIVE ---------- */
   @media (max-width: 640px){
     header{
@@ -1263,6 +1277,24 @@
 
       <!-- Vista del chat, una vez logueado -->
       <div class="oculto" id="vista-chat" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+        <div class="llamada-panel oculto" id="cliente-llamada-entrante">
+          <span class="llamada-titulo">📞 Llamada entrante de soporte</span>
+          <span class="llamada-detalle">El administrador quiere hablar con vos.</span>
+          <div class="llamada-acciones">
+            <button class="principal" id="cliente-llamada-contestar" type="button">Contestar</button>
+            <button class="peligro" id="cliente-llamada-rechazar" type="button">Rechazar</button>
+          </div>
+          <span class="llamada-estado" id="cliente-llamada-entrante-estado"></span>
+        </div>
+        <div class="llamada-panel oculto" id="cliente-llamada-activa">
+          <span class="llamada-titulo">☎ Llamada con Servicio De TV</span>
+          <span class="llamada-detalle" id="cliente-llamada-estado">Estás conectado con soporte.</span>
+          <div class="llamada-acciones">
+            <button id="cliente-llamada-mute" type="button">Silenciar micrófono</button>
+            <button class="peligro" id="cliente-llamada-colgar" type="button">Colgar</button>
+          </div>
+        </div>
+        <audio class="llamada-audio-remoto" id="cliente-audio-remoto" autoplay playsinline></audio>
         <div class="chat-mensajes" id="chat-mensajes"></div>
         <div class="chat-escribiendo oculto" id="chat-escribiendo">
           <span class="puntos"><span></span><span></span><span></span></span>
@@ -1324,7 +1356,19 @@
               <button id="admin-pausar">Pausar</button>
               <button id="admin-cerrar">Cerrar chat</button>
               <button id="admin-borrar">Borrar chat</button>
+              <button id="admin-llamar" type="button" disabled>📞 Llamar</button>
             </div>
+            <div class="llamada-panel oculto" id="admin-llamada-panel">
+              <span class="llamada-titulo">☎ Llamada con el cliente</span>
+              <span class="llamada-detalle" id="admin-llamada-detalle">Preparando llamada…</span>
+              <div class="llamada-acciones">
+                <button id="admin-llamada-mute" type="button">Silenciar micrófono</button>
+                <button id="admin-llamada-musica" type="button">🎵 Poner canción</button>
+                <button class="peligro" id="admin-llamada-colgar" type="button">Colgar</button>
+              </div>
+              <span class="llamada-estado" id="admin-llamada-estado"></span>
+            </div>
+            <audio class="llamada-audio-remoto" id="admin-audio-remoto" autoplay playsinline></audio>
             <div class="chat-mensajes" id="admin-mensajes"></div>
             <div class="chat-escribiendo oculto" id="admin-escribiendo">
               <span class="puntos"><span></span><span></span><span></span></span>
@@ -1607,7 +1651,7 @@
     }
 
     function reproducirMusicaPausaCliente(){
-      if (!clienteChatEstaPausado || !clientePuedeEscucharPausa()) {
+      if (clienteLlamadaActiva || !clienteChatEstaPausado || !clientePuedeEscucharPausa()) {
         detenerMusicaPausaCliente();
         return;
       }
@@ -2079,6 +2123,233 @@
     let refMensajesActual = null;
     let refEstadoActual = null;
     let refEscribiendoAdmin = null;
+
+    const CONFIG_LLAMADA_RTC = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    function crearCandidatoRTC(datos){
+      try { return new RTCIceCandidate(datos); }
+      catch (err) { console.warn('Candidato ICE inválido:', err); return null; }
+    }
+
+    let refLlamadaCliente = null;
+    let refCandidatosAdminCliente = null;
+    let pcLlamadaCliente = null;
+    let streamLocalCliente = null;
+    let streamRemotoCliente = null;
+    let candidatosAdminPendientesCliente = [];
+    let descripcionRemotaClienteLista = false;
+    let clienteContestandoLlamada = false;
+    let clienteMicrofonoSilenciado = false;
+    let clienteLlamadaActiva = false;
+    let clienteLlamadaChatId = null;
+
+    const panelLlamadaEntranteCliente = document.getElementById('cliente-llamada-entrante');
+    const panelLlamadaActivaCliente = document.getElementById('cliente-llamada-activa');
+    const audioRemotoCliente = document.getElementById('cliente-audio-remoto');
+    const estadoEntranteCliente = document.getElementById('cliente-llamada-entrante-estado');
+    const estadoLlamadaCliente = document.getElementById('cliente-llamada-estado');
+    const botonContestarCliente = document.getElementById('cliente-llamada-contestar');
+    const botonRechazarCliente = document.getElementById('cliente-llamada-rechazar');
+    const botonMuteCliente = document.getElementById('cliente-llamada-mute');
+    const botonColgarCliente = document.getElementById('cliente-llamada-colgar');
+
+    function actualizarUIllamadaCliente(estado){
+      panelLlamadaEntranteCliente.classList.toggle('oculto', estado !== 'entrante');
+      panelLlamadaActivaCliente.classList.toggle('oculto', estado !== 'activa');
+      if (estado === 'entrante') estadoEntranteCliente.textContent = 'Esperando que atiendas…';
+      if (estado === 'activa') estadoLlamadaCliente.textContent = 'Llamada conectada. Podés silenciar tu micrófono o colgar.';
+    }
+
+    async function agregarCandidatoCliente(datos){
+      const candidato = crearCandidatoRTC(datos);
+      if (!candidato || !pcLlamadaCliente) return;
+      if (!descripcionRemotaClienteLista) {
+        candidatosAdminPendientesCliente.push(candidato);
+        return;
+      }
+      try { await pcLlamadaCliente.addIceCandidate(candidato); }
+      catch (err) { console.warn('No se pudo agregar ICE del administrador:', err); }
+    }
+
+    async function vaciarCandidatosAdminCliente(){
+      if (!pcLlamadaCliente || !descripcionRemotaClienteLista) return;
+      const pendientes = candidatosAdminPendientesCliente.splice(0);
+      for (const candidato of pendientes) {
+        try { await pcLlamadaCliente.addIceCandidate(candidato); }
+        catch (err) { console.warn('No se pudo agregar ICE pendiente del administrador:', err); }
+      }
+    }
+
+    function limpiarLlamadaCliente(mensaje){
+      if (refCandidatosAdminCliente) refCandidatosAdminCliente.off();
+      refCandidatosAdminCliente = null;
+      if (pcLlamadaCliente) {
+        pcLlamadaCliente.ontrack = null;
+        pcLlamadaCliente.onicecandidate = null;
+        pcLlamadaCliente.close();
+      }
+      pcLlamadaCliente = null;
+      if (streamLocalCliente) streamLocalCliente.getTracks().forEach(track => track.stop());
+      streamLocalCliente = null;
+      if (audioRemotoCliente) audioRemotoCliente.srcObject = null;
+      streamRemotoCliente = null;
+      candidatosAdminPendientesCliente = [];
+      descripcionRemotaClienteLista = false;
+      clienteContestandoLlamada = false;
+      clienteMicrofonoSilenciado = false;
+      clienteLlamadaActiva = false;
+      botonMuteCliente.textContent = 'Silenciar micrófono';
+      actualizarUIllamadaCliente('ninguna');
+      if (mensaje) estadoLlamadaCliente.textContent = mensaje;
+      if (clienteChatEstaPausado) reproducirMusicaPausaCliente();
+    }
+
+    async function contestarLlamadaCliente(){
+      if (clienteContestandoLlamada || pcLlamadaCliente || !refLlamadaCliente) return;
+      clienteContestandoLlamada = true;
+      botonContestarCliente.disabled = true;
+      estadoEntranteCliente.textContent = 'Solicitando permiso para usar el micrófono…';
+
+      try {
+        const snap = await refLlamadaCliente.once('value');
+        const llamada = snap.val();
+        if (!llamada || llamada.status !== 'calling' || !llamada.offer) {
+          throw new Error('La llamada ya no está disponible.');
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Este navegador no permite usar el micrófono. Abrí la web con HTTPS y habilitá el micrófono.');
+        }
+
+        streamLocalCliente = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false
+        });
+
+        pcLlamadaCliente = new RTCPeerConnection(CONFIG_LLAMADA_RTC);
+        streamRemotoCliente = new MediaStream();
+        audioRemotoCliente.srcObject = streamRemotoCliente;
+        streamLocalCliente.getAudioTracks().forEach(track => pcLlamadaCliente.addTrack(track, streamLocalCliente));
+
+        pcLlamadaCliente.ontrack = event => {
+          const tracks = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
+          tracks.forEach(track => {
+            if (!streamRemotoCliente.getTracks().some(existing => existing.id === track.id)) {
+              streamRemotoCliente.addTrack(track);
+            }
+          });
+          audioRemotoCliente.play().catch(err => console.warn('El navegador bloqueó el audio remoto del cliente:', err));
+        };
+
+        pcLlamadaCliente.onicecandidate = event => {
+          if (event.candidate && refLlamadaCliente) {
+            refLlamadaCliente.child('clientCandidates').push(event.candidate.toJSON());
+          }
+        };
+
+        refCandidatosAdminCliente = refLlamadaCliente.child('adminCandidates');
+        refCandidatosAdminCliente.off();
+        refCandidatosAdminCliente.on('child_added', candidateSnap => {
+          const datos = candidateSnap.val();
+          if (datos) agregarCandidatoCliente(datos);
+        });
+
+        await pcLlamadaCliente.setRemoteDescription(new RTCSessionDescription(llamada.offer));
+        descripcionRemotaClienteLista = true;
+        await vaciarCandidatosAdminCliente();
+
+        const respuesta = await pcLlamadaCliente.createAnswer();
+        await pcLlamadaCliente.setLocalDescription(respuesta);
+        await refLlamadaCliente.update({
+          answer: { type: pcLlamadaCliente.localDescription.type, sdp: pcLlamadaCliente.localDescription.sdp },
+          status: 'active',
+          answeredAt: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        clienteLlamadaActiva = true;
+        detenerMusicaPausaCliente();
+        clienteMicrofonoSilenciado = false;
+        botonMuteCliente.textContent = 'Silenciar micrófono';
+        actualizarUIllamadaCliente('activa');
+        estadoLlamadaCliente.textContent = 'Conectando audio…';
+      } catch (err) {
+        console.error('Error al contestar la llamada:', err);
+        estadoEntranteCliente.textContent = err.message || 'No se pudo iniciar la llamada.';
+        if (refLlamadaCliente) refLlamadaCliente.update({ status: 'failed', error: String(err.message || err) }).catch(() => {});
+        limpiarLlamadaCliente('No se pudo conectar la llamada.');
+      } finally {
+        botonContestarCliente.disabled = false;
+        clienteContestandoLlamada = false;
+      }
+    }
+
+    function rechazarLlamadaCliente(){
+      if (refLlamadaCliente) refLlamadaCliente.update({
+        status: 'rejected',
+        endedBy: 'cliente',
+        endedAt: firebase.database.ServerValue.TIMESTAMP
+      }).catch(err => console.warn('No se pudo rechazar la llamada:', err));
+      limpiarLlamadaCliente('Llamada rechazada.');
+    }
+
+    function colgarLlamadaCliente(){
+      if (refLlamadaCliente) refLlamadaCliente.update({
+        status: 'ended',
+        endedBy: 'cliente',
+        endedAt: firebase.database.ServerValue.TIMESTAMP
+      }).catch(err => console.warn('No se pudo colgar la llamada:', err));
+      limpiarLlamadaCliente('Llamada finalizada.');
+    }
+
+    function escucharLlamadasCliente(chatId){
+      if (refLlamadaCliente) refLlamadaCliente.off();
+      if (refCandidatosAdminCliente) refCandidatosAdminCliente.off();
+      limpiarLlamadaCliente();
+      clienteLlamadaChatId = chatId;
+      refLlamadaCliente = db.ref('soporte_llamadas/' + chatId);
+      refLlamadaCliente.on('value', snap => {
+        const llamada = snap.val();
+        if (!llamada) {
+          if (pcLlamadaCliente) limpiarLlamadaCliente();
+          return;
+        }
+
+        if (llamada.status === 'calling' && llamada.offer && !pcLlamadaCliente && !clienteContestandoLlamada) {
+          overlay.classList.add('abierto');
+          vistaAuth.classList.add('oculto');
+          vistaChat.classList.remove('oculto');
+          actualizarUIllamadaCliente('entrante');
+          return;
+        }
+
+        if (llamada.status === 'active' && pcLlamadaCliente) {
+          clienteLlamadaActiva = true;
+          actualizarUIllamadaCliente('activa');
+          return;
+        }
+
+        if (['ended', 'rejected', 'failed'].includes(llamada.status) &&
+            (pcLlamadaCliente || clienteContestandoLlamada || !panelLlamadaEntranteCliente.classList.contains('oculto'))) {
+          const mensaje = llamada.status === 'rejected' ? 'Llamada rechazada.' :
+            llamada.status === 'failed' ? 'No se pudo conectar la llamada.' : 'El administrador finalizó la llamada.';
+          limpiarLlamadaCliente(mensaje);
+        }
+      });
+    }
+
+    botonContestarCliente.addEventListener('click', contestarLlamadaCliente);
+    botonRechazarCliente.addEventListener('click', rechazarLlamadaCliente);
+    botonColgarCliente.addEventListener('click', colgarLlamadaCliente);
+    botonMuteCliente.addEventListener('click', () => {
+      if (!streamLocalCliente) return;
+      clienteMicrofonoSilenciado = !clienteMicrofonoSilenciado;
+      streamLocalCliente.getAudioTracks().forEach(track => { track.enabled = !clienteMicrofonoSilenciado; });
+      botonMuteCliente.textContent = clienteMicrofonoSilenciado ? 'Activar micrófono' : 'Silenciar micrófono';
+    });
     let refEscribiendoClienteSalida = null;
     let clienteSincronizado = false; // pasa a true después de cargar el historial, para no sonar con mensajes viejos
 
@@ -2200,6 +2471,7 @@
       const refChat = db.ref('soporte_chats/' + chatId);
       refMensajesActual = refChat.child('mensajes');
       refEstadoActual = refChat.child('estado');
+      escucharLlamadasCliente(chatId);
       refEscribiendoAdmin = refChat.child('escribiendo/admin');
 
       refMensajesActual.off();
@@ -2320,11 +2592,14 @@
     });
 
     document.getElementById('cerrar-chat').addEventListener('click', function(){
+      if (pcLlamadaCliente || clienteContestandoLlamada) colgarLlamadaCliente();
       overlay.classList.remove('abierto');
       detenerMusicaPausaCliente();
     });
 
     salirBtn.addEventListener('click', function(){
+      if (pcLlamadaCliente || clienteContestandoLlamada) colgarLlamadaCliente();
+      if (refLlamadaCliente) refLlamadaCliente.off();
       clienteChatEstaPausado = false;
       detenerMusicaPausaCliente();
       localStorage.removeItem('soporte_usuario');
@@ -2371,6 +2646,31 @@
       const btnPausar = document.getElementById('admin-pausar');
       const btnCerrar = document.getElementById('admin-cerrar');
       const btnBorrar = document.getElementById('admin-borrar');
+      const btnLlamarAdmin = document.getElementById('admin-llamar');
+      const panelLlamadaAdmin = document.getElementById('admin-llamada-panel');
+      const detalleLlamadaAdmin = document.getElementById('admin-llamada-detalle');
+      const estadoLlamadaAdmin = document.getElementById('admin-llamada-estado');
+      const botonMuteAdmin = document.getElementById('admin-llamada-mute');
+      const botonMusicaAdmin = document.getElementById('admin-llamada-musica');
+      const botonColgarAdmin = document.getElementById('admin-llamada-colgar');
+      const audioRemotoAdmin = document.getElementById('admin-audio-remoto');
+
+      let adminCallRef = null;
+      let adminCallCandidatesRef = null;
+      let adminPcLlamada = null;
+      let adminStreamLocal = null;
+      let adminStreamRemoto = null;
+      let adminMusicaAudio = null;
+      let adminMusicaContexto = null;
+      let adminMusicaTrack = null;
+      let adminMusicaDestino = null;
+      let adminCallChatId = null;
+      let adminRespuestaAplicada = false;
+      let adminCandidatosPendientes = [];
+      let adminDescripcionRemotaLista = false;
+      let adminMicrofonoSilenciado = false;
+      let adminMusicaActiva = false;
+      let adminLlamadaActiva = false;
 
       let chatSeleccionado = null;
       let refMensajesAdmin = null;
@@ -2380,6 +2680,264 @@
       let adminSincronizado = false;
       let timeoutEscribiendoAdmin = null;
       const adminEscribiendoEl = document.getElementById('admin-escribiendo');
+
+      function actualizarUIllamadaAdmin(visible){
+        panelLlamadaAdmin.classList.toggle('oculto', !visible);
+        btnLlamarAdmin.disabled = !!adminPcLlamada || !chatSeleccionado;
+        btnLlamarAdmin.textContent = adminPcLlamada ? '📞 Llamada en curso' : '📞 Llamar';
+      }
+
+      async function agregarCandidatoAdmin(datos){
+        const candidato = crearCandidatoRTC(datos);
+        if (!candidato || !adminPcLlamada) return;
+        if (!adminDescripcionRemotaLista) { adminCandidatosPendientes.push(candidato); return; }
+        try { await adminPcLlamada.addIceCandidate(candidato); }
+        catch (err) { console.warn('No se pudo agregar ICE del cliente:', err); }
+      }
+
+      async function vaciarCandidatosClienteAdmin(){
+        if (!adminPcLlamada || !adminDescripcionRemotaLista) return;
+        const pendientes = adminCandidatosPendientes.splice(0);
+        for (const candidato of pendientes) {
+          try { await adminPcLlamada.addIceCandidate(candidato); }
+          catch (err) { console.warn('No se pudo agregar ICE pendiente del cliente:', err); }
+        }
+      }
+
+      function limpiarLlamadaAdmin(mensaje, reanudarMusicaPausa = true){
+        if (adminCallRef) adminCallRef.off('value');
+        if (adminCallCandidatesRef) adminCallCandidatesRef.off();
+        adminCallCandidatesRef = null;
+        if (adminPcLlamada) {
+          adminPcLlamada.ontrack = null;
+          adminPcLlamada.onicecandidate = null;
+          adminPcLlamada.close();
+        }
+        adminPcLlamada = null;
+        if (adminStreamLocal) adminStreamLocal.getTracks().forEach(track => track.stop());
+        adminStreamLocal = null;
+        if (adminMusicaAudio) {
+          adminMusicaAudio.pause();
+          adminMusicaAudio.currentTime = 0;
+          adminMusicaAudio = null;
+        }
+        if (adminMusicaContexto) {
+          adminMusicaContexto.close().catch(() => {});
+          adminMusicaContexto = null;
+        }
+        adminMusicaTrack = null;
+        adminMusicaDestino = null;
+        if (audioRemotoAdmin) audioRemotoAdmin.srcObject = null;
+        adminStreamRemoto = null;
+        adminRespuestaAplicada = false;
+        adminCandidatosPendientes = [];
+        adminDescripcionRemotaLista = false;
+        adminMicrofonoSilenciado = false;
+        adminMusicaActiva = false;
+        adminLlamadaActiva = false;
+        botonMuteAdmin.textContent = 'Silenciar micrófono';
+        botonMusicaAdmin.textContent = '🎵 Poner canción';
+        actualizarUIllamadaAdmin(false);
+        if (mensaje) estadoLlamadaAdmin.textContent = mensaje;
+        if (reanudarMusicaPausa && btnPausar.classList.contains('pausar-activo')) reproducirMusicaPausa();
+        adminCallRef = null;
+        adminCallChatId = null;
+      }
+
+      async function iniciarLlamadaAdmin(){
+        if (!chatSeleccionado) {
+          estadoLlamadaAdmin.textContent = 'Primero seleccioná una conversación.';
+          return;
+        }
+        if (adminPcLlamada) return;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) {
+          estadoLlamadaAdmin.textContent = 'Este navegador no permite llamadas. Usá una versión actualizada y HTTPS.';
+          return;
+        }
+
+        const idCliente = chatSeleccionado;
+        btnLlamarAdmin.disabled = true;
+        estadoLlamadaAdmin.textContent = 'Solicitando permiso para usar el micrófono…';
+
+        try {
+          adminStreamLocal = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false
+          });
+
+          adminPcLlamada = new RTCPeerConnection(CONFIG_LLAMADA_RTC);
+          adminStreamRemoto = new MediaStream();
+          audioRemotoAdmin.srcObject = adminStreamRemoto;
+          adminStreamLocal.getAudioTracks().forEach(track => adminPcLlamada.addTrack(track, adminStreamLocal));
+
+          adminPcLlamada.ontrack = event => {
+            const tracks = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
+            tracks.forEach(track => {
+              if (!adminStreamRemoto.getTracks().some(existing => existing.id === track.id)) adminStreamRemoto.addTrack(track);
+            });
+            audioRemotoAdmin.play().catch(err => {
+              estadoLlamadaAdmin.textContent = 'El navegador bloqueó el audio remoto. Hacé clic en el panel de llamada.';
+              console.warn('Audio remoto del administrador bloqueado:', err);
+            });
+          };
+
+          adminPcLlamada.onicecandidate = event => {
+            if (event.candidate && adminCallRef) adminCallRef.child('adminCandidates').push(event.candidate.toJSON());
+          };
+          adminPcLlamada.onconnectionstatechange = () => {
+            const estado = adminPcLlamada ? adminPcLlamada.connectionState : '';
+            if (estado === 'connected') {
+              adminLlamadaActiva = true;
+              detalleLlamadaAdmin.textContent = 'Conectado con el cliente.';
+              estadoLlamadaAdmin.textContent = 'Llamada en vivo.';
+              actualizarUIllamadaAdmin(true);
+            } else if (estado === 'connecting') {
+              detalleLlamadaAdmin.textContent = 'Conectando con el cliente…';
+            } else if (estado === 'failed') {
+              estadoLlamadaAdmin.textContent = 'No se pudo establecer la conexión. Puede hacer falta un servidor TURN.';
+              if (adminCallRef) adminCallRef.update({ status: 'failed', endedBy: 'admin' }).catch(() => {});
+              limpiarLlamadaAdmin('Falló la conexión.', false);
+            } else if (estado === 'disconnected') {
+              estadoLlamadaAdmin.textContent = 'Conexión interrumpida; intentando recuperar…';
+            }
+          };
+
+          if (audioPausaDataUrlActual && (window.AudioContext || window.webkitAudioContext)) {
+            adminMusicaAudio = new Audio(audioPausaDataUrlActual);
+            adminMusicaAudio.loop = true;
+            adminMusicaAudio.preload = 'auto';
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            adminMusicaContexto = new AudioContextClass();
+            const fuente = adminMusicaContexto.createMediaElementSource(adminMusicaAudio);
+            adminMusicaDestino = adminMusicaContexto.createMediaStreamDestination();
+            fuente.connect(adminMusicaDestino);
+            adminMusicaTrack = adminMusicaDestino.stream.getAudioTracks()[0];
+            if (adminMusicaTrack) {
+              adminMusicaTrack.enabled = false;
+              adminPcLlamada.addTrack(adminMusicaTrack, adminMusicaDestino.stream);
+            }
+          }
+
+          adminCallChatId = idCliente;
+          adminCallRef = db.ref('soporte_llamadas/' + idCliente);
+          const llamadaExistente = (await adminCallRef.once('value')).val();
+          if (llamadaExistente && ['calling', 'active'].includes(llamadaExistente.status)) {
+            throw new Error('Esta conversación ya tiene una llamada en curso.');
+          }
+
+          await adminCallRef.set({
+            status: 'calling',
+            caller: 'admin',
+            startedAt: firebase.database.ServerValue.TIMESTAMP
+          });
+
+          adminCallCandidatesRef = adminCallRef.child('clientCandidates');
+          adminCallCandidatesRef.on('child_added', candidateSnap => {
+            const datos = candidateSnap.val();
+            if (datos) agregarCandidatoAdmin(datos);
+          });
+
+          adminRespuestaAplicada = false;
+          adminDescripcionRemotaLista = false;
+          adminCandidatosPendientes = [];
+
+          adminCallRef.on('value', async snap => {
+            const llamada = snap.val();
+            if (!llamada) return;
+
+            if (llamada.answer && !adminRespuestaAplicada && adminPcLlamada) {
+              adminRespuestaAplicada = true;
+              try {
+                await adminPcLlamada.setRemoteDescription(new RTCSessionDescription(llamada.answer));
+                adminDescripcionRemotaLista = true;
+                await vaciarCandidatosClienteAdmin();
+                adminLlamadaActiva = true;
+                detalleLlamadaAdmin.textContent = 'El cliente atendió. Conectando audio…';
+                actualizarUIllamadaAdmin(true);
+              } catch (err) {
+                console.error('No se pudo aplicar la respuesta WebRTC:', err);
+                estadoLlamadaAdmin.textContent = 'No se pudo completar la llamada.';
+              }
+            }
+
+            if (llamada.status === 'active' && adminPcLlamada) {
+              detalleLlamadaAdmin.textContent = 'El cliente atendió. Conectando audio…';
+              actualizarUIllamadaAdmin(true);
+            } else if (llamada.status === 'rejected') {
+              limpiarLlamadaAdmin('El cliente rechazó la llamada.', false);
+            } else if (llamada.status === 'ended') {
+              limpiarLlamadaAdmin(llamada.endedBy === 'cliente' ? 'El cliente colgó.' : 'Llamada finalizada.', false);
+            } else if (llamada.status === 'failed') {
+              limpiarLlamadaAdmin('No se pudo conectar la llamada.', false);
+            }
+          });
+
+          const oferta = await adminPcLlamada.createOffer();
+          await adminPcLlamada.setLocalDescription(oferta);
+          await adminCallRef.update({
+            offer: { type: adminPcLlamada.localDescription.type, sdp: adminPcLlamada.localDescription.sdp }
+          });
+
+          panelLlamadaAdmin.classList.remove('oculto');
+          detalleLlamadaAdmin.textContent = 'Llamando al cliente… Esperando que atienda.';
+          estadoLlamadaAdmin.textContent = 'Permití el uso del micrófono si el navegador lo solicita.';
+          actualizarUIllamadaAdmin(true);
+          if (btnPausar.classList.contains('pausar-activo')) detenerMusicaPausa();
+        } catch (err) {
+          console.error('Error al iniciar llamada:', err);
+          const mensaje = err && err.message ? err.message : 'No se pudo iniciar la llamada.';
+          estadoLlamadaAdmin.textContent = mensaje;
+          if (adminCallRef) adminCallRef.update({ status: 'failed', error: mensaje }).catch(() => {});
+          limpiarLlamadaAdmin(mensaje, false);
+          btnLlamarAdmin.disabled = false;
+        }
+      }
+
+      function colgarLlamadaAdmin(){
+        if (adminCallRef) {
+          adminCallRef.update({
+            status: 'ended',
+            endedBy: 'admin',
+            endedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(err => console.warn('No se pudo avisar al cliente que se colgó:', err));
+        }
+        limpiarLlamadaAdmin('Llamada finalizada por el administrador.');
+      }
+
+      btnLlamarAdmin.addEventListener('click', iniciarLlamadaAdmin);
+      botonColgarAdmin.addEventListener('click', colgarLlamadaAdmin);
+      botonMuteAdmin.addEventListener('click', () => {
+        if (!adminStreamLocal) return;
+        adminMicrofonoSilenciado = !adminMicrofonoSilenciado;
+        adminStreamLocal.getAudioTracks().forEach(track => { track.enabled = !adminMicrofonoSilenciado; });
+        botonMuteAdmin.textContent = adminMicrofonoSilenciado ? 'Activar micrófono' : 'Silenciar micrófono';
+      });
+      botonMusicaAdmin.addEventListener('click', async () => {
+        if (!adminPcLlamada) return;
+        if (!adminMusicaAudio || !adminMusicaContexto || !adminMusicaTrack) {
+          estadoLlamadaAdmin.textContent = 'Primero cargá un MP3 desde Editar sitio.';
+          return;
+        }
+        try {
+          if (!adminMusicaActiva) {
+            await adminMusicaContexto.resume();
+            adminMusicaTrack.enabled = true;
+            await adminMusicaAudio.play();
+            adminMusicaActiva = true;
+            botonMusicaAdmin.textContent = '🎵 Quitar canción';
+          } else {
+            adminMusicaTrack.enabled = false;
+            adminMusicaAudio.pause();
+            adminMusicaAudio.currentTime = 0;
+            adminMusicaActiva = false;
+            botonMusicaAdmin.textContent = '🎵 Poner canción';
+          }
+        } catch (err) {
+          adminMusicaTrack.enabled = false;
+          adminMusicaActiva = false;
+          estadoLlamadaAdmin.textContent = 'No se pudo reproducir la canción: ' + (err.message || err);
+        }
+      });
 
       // ---- Avisos globales del soporte (solo después del login admin) ----
       const adminNotificacionesEl = document.getElementById('admin-notificaciones');
@@ -2567,6 +3125,7 @@
 
       function seleccionarChat(id){
         chatSeleccionado = id;
+        btnLlamarAdmin.disabled = !id || !!adminPcLlamada;
         adminMensajesEl.innerHTML = '';
         adminSincronizado = false;
         adminEscribiendoEl.classList.add('oculto');
@@ -2649,8 +3208,9 @@
         const estabaPausado = btnPausar.classList.contains('pausar-activo');
         const nuevoEstado = estabaPausado ? 'abierto' : 'pausado';
 
-        if (nuevoEstado === 'pausado') reproducirMusicaPausa();
-        else detenerMusicaPausa();
+        if (nuevoEstado === 'pausado') {
+          if (!adminLlamadaActiva) reproducirMusicaPausa();
+        } else detenerMusicaPausa();
 
         db.ref('soporte_chats/' + chatSeleccionado + '/estado').set(nuevoEstado)
           .catch(err => console.error('No se pudo cambiar el estado de la conversación:', err));
@@ -2666,6 +3226,7 @@
         if (!confirm('¿Borrar esta conversación? El cliente va a tener que crear una cuenta nueva para volver a escribir.')) return;
 
         const idABorrar = chatSeleccionado;
+        if (adminCallChatId === idABorrar && adminPcLlamada) colgarLlamadaAdmin();
         db.ref('soporte_chats/' + idABorrar + '/usuario').once('value', s => {
           const usuario = s.val();
           db.ref('soporte_chats/' + idABorrar).remove();
