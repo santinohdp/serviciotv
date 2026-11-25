@@ -1609,7 +1609,7 @@
 
     function actualizarCredencialesTURN(datos){
       let app = String(datos && datos.turnAppName || '').trim().toLowerCase();
-      app = app.replace(/^https?:\\/\\//, '').replace(/\\/+$/, '').replace(/\\.metered\\.live$/, '');
+      app = app.replace('https://', '').replace('http://', ''); while (app.endsWith('/')) app = app.slice(0, -1); if (app.endsWith('.metered.live')) app = app.slice(0, -13);
       turnAppNameActual = /^[a-z0-9-]+$/.test(app) ? app : '';
       turnApiKeyActual = String(datos && datos.turnApiKey || '').trim();
     }
