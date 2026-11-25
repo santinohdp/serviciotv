@@ -1357,6 +1357,19 @@
             </div>
           </div>
 
+          <div class="editor-seccion">
+            <div class="editor-seccion-cabecera">
+              <span>MÚSICA AL PONER UNA CONVERSACIÓN EN PAUSA</span>
+            </div>
+            <p class="editor-ayuda">Elegí un archivo MP3. Se guardará en Firebase y sonará una vez en el navegador del administrador cuando pongas una conversación en pausa. No se repetirá mientras siga pausada.</p>
+            <div class="editor-campo">
+              <label>Archivo MP3 de espera</label>
+              <input type="file" id="editor-audio-pausa" accept=".mp3,audio/mpeg">
+              <span class="editor-ayuda" id="editor-audio-pausa-estado">No hay música de pausa guardada.</span>
+            </div>
+            <button class="editor-borrar-seccion" id="editor-audio-pausa-quitar" type="button">Quitar música guardada</button>
+          </div>
+
 <div class="editor-fila-2">
             <div class="editor-campo">
               <label>Precio (monto)</label>
@@ -1521,6 +1534,49 @@
     // =====================================================================
 
     const REF_SITIO = db.ref('soporte_sitio/datos');
+
+    // Música opcional que se reproduce una sola vez cuando el administrador pausa un chat.
+    // El archivo MP3 se guarda como data URL en Firebase para que no dependa de un archivo externo.
+    let audioPausaDataUrlActual = '';
+    let reproductorAudioPausa = null;
+
+    function actualizarAudioPausa(datos){
+      const nuevaData = datos && typeof datos.audioPausaData === 'string' ? datos.audioPausaData : '';
+      if (nuevaData === audioPausaDataUrlActual) return;
+
+      if (reproductorAudioPausa) {
+        reproductorAudioPausa.pause();
+        reproductorAudioPausa.currentTime = 0;
+        reproductorAudioPausa = null;
+      }
+
+      audioPausaDataUrlActual = nuevaData;
+      if (nuevaData.startsWith('data:audio/')) {
+        reproductorAudioPausa = new Audio(nuevaData);
+        reproductorAudioPausa.preload = 'auto';
+        reproductorAudioPausa.loop = false;
+      }
+    }
+
+    function reproducirMusicaPausa(){
+      if (!reproductorAudioPausa) return;
+      try {
+        reproductorAudioPausa.pause();
+        reproductorAudioPausa.currentTime = 0;
+        const reproduccion = reproductorAudioPausa.play();
+        if (reproduccion && typeof reproduccion.catch === 'function') {
+          reproduccion.catch(err => console.warn('El navegador no permitió reproducir la música de pausa:', err));
+        }
+      } catch (err) {
+        console.warn('No se pudo reproducir la música de pausa:', err);
+      }
+    }
+
+    function detenerMusicaPausa(){
+      if (!reproductorAudioPausa) return;
+      reproductorAudioPausa.pause();
+      reproductorAudioPausa.currentTime = 0;
+    }
 
     // Contenido inicial: el mismo que ya tenía la página escrito a mano.
     // Se usa solo la primera vez, si todavía no hay nada guardado en Firebase.
@@ -1758,6 +1814,7 @@
     function renderSitio(datos){
       if (!datos) return;
 
+      actualizarAudioPausa(datos);
       mensajeInicialSoporteActual = normalizarMensajeInicialSoporte(datos.mensajeInicialSoporte);
       document.getElementById('footer-img').src = datos.footerImg || '';
       document.getElementById('footer-derechos').textContent = datos.footerDerechos || '';
@@ -2459,9 +2516,17 @@
 
       btnPausar.addEventListener('click', () => {
         if (!chatSeleccionado) return;
-        db.ref('soporte_chats/' + chatSeleccionado + '/estado').once('value', s => {
-          db.ref('soporte_chats/' + chatSeleccionado + '/estado').set(s.val() === 'pausado' ? 'abierto' : 'pausado');
-        });
+
+        // El estado visual lo mantiene sincronizado Firebase. Usarlo aquí permite iniciar
+        // el audio directamente desde el clic del administrador (permiso de reproducción).
+        const estabaPausado = btnPausar.classList.contains('pausar-activo');
+        const nuevoEstado = estabaPausado ? 'abierto' : 'pausado';
+
+        if (nuevoEstado === 'pausado') reproducirMusicaPausa();
+        else detenerMusicaPausa();
+
+        db.ref('soporte_chats/' + chatSeleccionado + '/estado').set(nuevoEstado)
+          .catch(err => console.error('No se pudo cambiar el estado de la conversación:', err));
       });
 
       btnCerrar.addEventListener('click', () => {
@@ -2489,6 +2554,52 @@
       let editorYaCargado = false;
       const editorSoporteMensajeEl = document.getElementById('editor-soporte-mensaje');
       const editorSoporteBotonesEl = document.getElementById('editor-soporte-botones');
+      const editorAudioPausaInput = document.getElementById('editor-audio-pausa');
+      const editorAudioPausaEstado = document.getElementById('editor-audio-pausa-estado');
+      const editorAudioPausaQuitar = document.getElementById('editor-audio-pausa-quitar');
+      let audioPausaPendiente = null;
+      let quitarAudioPausaPendiente = false;
+
+      editorAudioPausaInput.addEventListener('change', () => {
+        const archivo = editorAudioPausaInput.files && editorAudioPausaInput.files[0];
+        if (!archivo) return;
+
+        if (!archivo.name.toLowerCase().endsWith('.mp3') && archivo.type !== 'audio/mpeg') {
+          editorAudioPausaEstado.textContent = 'Elegí un archivo MP3.';
+          editorAudioPausaInput.value = '';
+          return;
+        }
+        if (archivo.size > 3 * 1024 * 1024) {
+          editorAudioPausaEstado.textContent = 'El MP3 supera el límite de 3 MB.';
+          editorAudioPausaInput.value = '';
+          return;
+        }
+
+        editorAudioPausaEstado.textContent = 'Leyendo MP3…';
+        const lector = new FileReader();
+        lector.onload = () => {
+          const resultado = String(lector.result || '');
+          const base64 = resultado.includes(',') ? resultado.slice(resultado.indexOf(',') + 1) : '';
+          if (!base64) {
+            editorAudioPausaEstado.textContent = 'No se pudo leer el archivo. Probá nuevamente.';
+            return;
+          }
+          audioPausaPendiente = 'data:audio/mpeg;base64,' + base64;
+          quitarAudioPausaPendiente = false;
+          editorAudioPausaEstado.textContent = '✓ MP3 listo. Tocá “Guardar cambios en la web” para activarlo.';
+        };
+        lector.onerror = () => {
+          editorAudioPausaEstado.textContent = 'No se pudo leer el MP3.';
+        };
+        lector.readAsDataURL(archivo);
+      });
+
+      editorAudioPausaQuitar.addEventListener('click', () => {
+        audioPausaPendiente = '';
+        quitarAudioPausaPendiente = true;
+        editorAudioPausaInput.value = '';
+        editorAudioPausaEstado.textContent = 'La música se quitará cuando guardes los cambios.';
+      });
 
       function crearFilaBotonSoporte(boton){
         boton = boton || { texto: '', url: '' };
@@ -2641,6 +2752,12 @@
           document.getElementById('editor-footer-contacto').value = datosSitioActuales.footerContacto || '';
           document.getElementById('editor-footer-img').value = datosSitioActuales.footerImg || '';
           cargarEditorBotonesSoporte(datosSitioActuales.mensajeInicialSoporte);
+          audioPausaPendiente = null;
+          quitarAudioPausaPendiente = false;
+          editorAudioPausaInput.value = '';
+          editorAudioPausaEstado.textContent = datosSitioActuales.audioPausaData
+            ? '✓ Ya hay un MP3 guardado. Elegí otro para reemplazarlo o quitá el actual.'
+            : 'No hay música de pausa guardada.';
 
           editorSeccionesEl.innerHTML = '';
           (datosSitioActuales.secciones || []).forEach(sec => {
@@ -2716,6 +2833,9 @@
           footerDerechos: document.getElementById('editor-footer-derechos').value.trim(),
           footerContacto: document.getElementById('editor-footer-contacto').value.trim(),
           footerImg: document.getElementById('editor-footer-img').value.trim(),
+          audioPausaData: quitarAudioPausaPendiente
+            ? ''
+            : (audioPausaPendiente !== null ? audioPausaPendiente : (datosSitioActuales.audioPausaData || '')),
           secciones,
           paginas
         };
@@ -2723,6 +2843,13 @@
         estadoGuardadoEl.textContent = 'Guardando…';
         estadoGuardadoEl.style.color = '#3ddc84';
         REF_SITIO.set(nuevosDatos).then(() => {
+          datosSitioActuales = nuevosDatos;
+          audioPausaPendiente = null;
+          quitarAudioPausaPendiente = false;
+          editorAudioPausaInput.value = '';
+          editorAudioPausaEstado.textContent = nuevosDatos.audioPausaData
+            ? '✓ MP3 de pausa guardado correctamente.'
+            : 'No hay música de pausa guardada.';
           estadoGuardadoEl.textContent = '✓ Cambios guardados. Ya se ven en la web.';
           setTimeout(() => { estadoGuardadoEl.textContent = ''; }, 4000);
         }).catch(err => {
