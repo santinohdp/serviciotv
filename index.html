@@ -1231,6 +1231,7 @@
           </span>
         </div>
         <div style="display:flex; align-items:center;">
+          <button class="chat-salir-btn oculto" id="chat-sonido-btn" type="button">Activar sonido</button>
           <button class="chat-salir-btn oculto" id="salir-chat">Salir</button>
           <button class="chat-cerrar-btn" id="cerrar-chat" aria-label="Cerrar">×</button>
         </div>
@@ -1538,7 +1539,16 @@
     // Música opcional que se reproduce una sola vez cuando el administrador pausa un chat.
     // El archivo MP3 se guarda como data URL en Firebase para que no dependa de un archivo externo.
     let audioPausaDataUrlActual = '';
-    let reproductorAudioPausa = null;
+    let reproductorAudioPausa = null; // reproductor del administrador
+    let reproductorAudioPausaCliente = null; // reproductor independiente para cada cliente
+    let clienteAudioPausaHabilitado = false;
+    let clienteChatEstaPausado = false;
+
+    function actualizarBotonSonidoCliente(mostrar){
+      const boton = document.getElementById('chat-sonido-btn');
+      if (!boton) return;
+      boton.classList.toggle('oculto', !mostrar);
+    }
 
     function actualizarAudioPausa(datos){
       const nuevaData = datos && typeof datos.audioPausaData === 'string' ? datos.audioPausaData : '';
@@ -1549,13 +1559,24 @@
         reproductorAudioPausa.currentTime = 0;
         reproductorAudioPausa = null;
       }
+      if (reproductorAudioPausaCliente) {
+        reproductorAudioPausaCliente.pause();
+        reproductorAudioPausaCliente.currentTime = 0;
+        reproductorAudioPausaCliente = null;
+      }
 
       audioPausaDataUrlActual = nuevaData;
+      clienteAudioPausaHabilitado = false;
       if (nuevaData.startsWith('data:audio/')) {
         reproductorAudioPausa = new Audio(nuevaData);
         reproductorAudioPausa.preload = 'auto';
         reproductorAudioPausa.loop = true;
+
+        reproductorAudioPausaCliente = new Audio(nuevaData);
+        reproductorAudioPausaCliente.preload = 'auto';
+        reproductorAudioPausaCliente.loop = true;
       }
+      actualizarBotonSonidoCliente(false);
     }
 
     function reproducirMusicaPausa(){
@@ -1576,6 +1597,90 @@
       if (!reproductorAudioPausa) return;
       reproductorAudioPausa.pause();
       reproductorAudioPausa.currentTime = 0;
+    }
+
+    function clientePuedeEscucharPausa(){
+      const modal = document.getElementById('chat-overlay');
+      const vista = document.getElementById('vista-chat');
+      return !!(modal && modal.classList.contains('abierto') &&
+        vista && !vista.classList.contains('oculto'));
+    }
+
+    function reproducirMusicaPausaCliente(){
+      if (!clienteChatEstaPausado || !clientePuedeEscucharPausa()) {
+        detenerMusicaPausaCliente();
+        return;
+      }
+      if (!reproductorAudioPausaCliente) return;
+
+      if (!clienteAudioPausaHabilitado) {
+        actualizarBotonSonidoCliente(true);
+        return;
+      }
+
+      try {
+        const reproduccion = reproductorAudioPausaCliente.play();
+        if (reproduccion && typeof reproduccion.catch === 'function') {
+          reproduccion.catch(err => {
+            clienteAudioPausaHabilitado = false;
+            actualizarBotonSonidoCliente(true);
+            console.warn('El navegador bloqueó el audio de espera del cliente:', err);
+          });
+        }
+      } catch (err) {
+        clienteAudioPausaHabilitado = false;
+        actualizarBotonSonidoCliente(true);
+        console.warn('No se pudo iniciar el audio de espera del cliente:', err);
+      }
+    }
+
+    function detenerMusicaPausaCliente(){
+      if (!reproductorAudioPausaCliente) return;
+      reproductorAudioPausaCliente.pause();
+      reproductorAudioPausaCliente.currentTime = 0;
+      actualizarBotonSonidoCliente(false);
+    }
+
+    // Se llama directamente desde un clic/submit del cliente para solicitar
+    // permiso de reproducción al navegador antes de que llegue el cambio de Firebase.
+    function habilitarSonidoClientePorInteraccion(){
+      if (!reproductorAudioPausaCliente) return;
+
+      const audio = reproductorAudioPausaCliente;
+      clienteAudioPausaHabilitado = true;
+
+      if (clienteChatEstaPausado && clientePuedeEscucharPausa()) {
+        const reproduccion = audio.play();
+        if (reproduccion && typeof reproduccion.then === 'function') {
+          reproduccion.then(() => actualizarBotonSonidoCliente(false)).catch(() => {
+            clienteAudioPausaHabilitado = false;
+            actualizarBotonSonidoCliente(true);
+          });
+        }
+        return;
+      }
+
+      // Mientras el chat está abierto, se hace una reproducción silenciada muy breve
+      // para solicitar permiso sin interrumpir al cliente con la música.
+      audio.muted = true;
+      const reproduccion = audio.play();
+      if (reproduccion && typeof reproduccion.then === 'function') {
+        reproduccion.then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+          clienteAudioPausaHabilitado = true;
+          actualizarBotonSonidoCliente(false);
+        }).catch(() => {
+          audio.muted = false;
+          clienteAudioPausaHabilitado = false;
+          if (clienteChatEstaPausado) actualizarBotonSonidoCliente(true);
+        });
+      } else {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = false;
+      }
     }
 
     // Contenido inicial: el mismo que ya tenía la página escrito a mano.
@@ -1995,6 +2100,8 @@
     });
 
     function mostrarAuth(){
+      clienteChatEstaPausado = false;
+      detenerMusicaPausaCliente();
       vistaChat.classList.add('oculto');
       vistaAuth.classList.remove('oculto');
       estadoEl.classList.add('oculto');
@@ -2080,6 +2187,7 @@
     }
 
     function entrarAlChat(chatId, usuario){
+      habilitarSonidoClientePorInteraccion();
       localStorage.setItem('soporte_chat_id', chatId);
 
       vistaAuth.classList.add('oculto');
@@ -2110,17 +2218,26 @@
       refEstadoActual.on('value', snap => {
         if (!snap.exists()) {
           // El admin borró la conversación
+          clienteChatEstaPausado = false;
+          detenerMusicaPausaCliente();
           localStorage.removeItem('soporte_usuario');
           localStorage.removeItem('soporte_chat_id');
           mostrarAuth();
           return;
         }
-        actualizarEstadoUI(snap.val());
+
+        const estado = snap.val();
+        clienteChatEstaPausado = estado === 'pausado';
+        actualizarEstadoUI(estado);
+
+        if (clienteChatEstaPausado) reproducirMusicaPausaCliente();
+        else detenerMusicaPausaCliente();
       });
     }
 
     formRegistro.addEventListener('submit', async function(e){
       e.preventDefault();
+      habilitarSonidoClientePorInteraccion();
       regError.textContent = '';
       const usuario = normalizarUsuario(document.getElementById('reg-usuario').value);
       const clave = document.getElementById('reg-clave').value;
@@ -2158,6 +2275,7 @@
 
     formLogin.addEventListener('submit', async function(e){
       e.preventDefault();
+      habilitarSonidoClientePorInteraccion();
       loginError.textContent = '';
       const usuario = normalizarUsuario(document.getElementById('login-usuario').value);
       const clave = document.getElementById('login-clave').value;
@@ -2185,6 +2303,7 @@
       }
 
       overlay.classList.add('abierto');
+      habilitarSonidoClientePorInteraccion();
 
       const usuarioGuardado = localStorage.getItem('soporte_usuario');
       const chatIdGuardado = localStorage.getItem('soporte_chat_id');
@@ -2195,11 +2314,19 @@
       }
     });
 
+    document.getElementById('chat-sonido-btn').addEventListener('click', function(){
+      habilitarSonidoClientePorInteraccion();
+      if (clienteChatEstaPausado) reproducirMusicaPausaCliente();
+    });
+
     document.getElementById('cerrar-chat').addEventListener('click', function(){
       overlay.classList.remove('abierto');
+      detenerMusicaPausaCliente();
     });
 
     salirBtn.addEventListener('click', function(){
+      clienteChatEstaPausado = false;
+      detenerMusicaPausaCliente();
       localStorage.removeItem('soporte_usuario');
       localStorage.removeItem('soporte_chat_id');
       mostrarAuth();
