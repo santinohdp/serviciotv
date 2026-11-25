@@ -1610,7 +1610,7 @@
       // Así puede mostrar HTML/CSS/JS sin acceder al DOM, Firebase o almacenamiento del sitio.
       if (sec.tipo === 'html') {
         return `<div class="bloque-info bloque-html">${titulo}` +
-          `<iframe class="visor-html" title="${escapeHTML(sec.titulo || 'Contenido HTML')}" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>` +
+          `<iframe class="visor-html" title="${escapeHTML(sec.titulo || 'Contenido HTML')}" sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>` +
           `<template class="visor-html-codigo">${escapeHTML(sec.contenido || '')}</template>` +
         `</div>`;
       }
