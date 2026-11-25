@@ -2934,6 +2934,7 @@
         limpiarLlamadaAdmin('Llamada finalizada por soporte.');
       }
 
+      let ultimaSolicitudAvisadaAdmin = null;
       function iniciarMonitorSolicitudesLlamadaAdmin(){
         if (adminSolicitudRef) return;
         adminSolicitudRef = db.ref('soporte_llamadas');
@@ -2953,7 +2954,12 @@
             controlesLlamadaAdmin.classList.add('oculto');
             detalleLlamadaAdmin.textContent = 'El cliente solicitó una llamada. Podés atenderla o rechazarla.';
             estadoLlamadaAdmin.textContent = 'Solicitud recibida.';
+            document.getElementById('admin-overlay').classList.add('abierto');
             document.getElementById('admin-tab-soporte').click();
+            if (ultimaSolicitudAvisadaAdmin !== id) {
+              ultimaSolicitudAvisadaAdmin = id;
+              mostrarAvisoAdmin('Solicitud de llamada', 'Un cliente está esperando que atiendas su llamada.');
+            }
           } else if (!adminPcLlamada && !adminCallChatId) {
             actualizarUIllamadaAdmin('none');
           }
@@ -3145,7 +3151,11 @@
         }
       });
 
-      document.getElementById('cerrar-admin').addEventListener('click', () => adminOverlay.classList.remove('abierto'));
+      document.getElementById('cerrar-admin').addEventListener('click', () => {
+        if (adminPcLlamada) colgarLlamadaAdmin();
+        else if (adminCallChatId) rechazarSolicitudLlamadaAdmin();
+        adminOverlay.classList.remove('abierto');
+      });
 
       adminFormLogin.addEventListener('submit', function(e){
         e.preventDefault();
@@ -3187,11 +3197,11 @@
       }
 
       function seleccionarChat(id){
-        if (adminPcLlamada && adminCallChatId && adminCallChatId !== id) colgarLlamadaAdmin();
-        if (!adminPcLlamada && adminCallChatId && adminCallChatId !== id) {
-          adminCallChatId = null;
-          actualizarUIllamadaAdmin('none');
+        if (adminCallChatId && adminCallChatId !== id && !adminPcLlamada) {
+          estadoLlamadaAdmin.textContent = 'Tenés una solicitud de llamada pendiente. Atendela o rechazala antes de cambiar de conversación.';
+          return;
         }
+        if (adminPcLlamada && adminCallChatId && adminCallChatId !== id) colgarLlamadaAdmin();
         chatSeleccionado = id;
         adminMensajesEl.innerHTML = '';
         adminSincronizado = false;
