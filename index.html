@@ -294,6 +294,9 @@
   .llamada-acciones button:disabled{opacity:.45;cursor:not-allowed}
   .llamada-estado{min-height:1em;color:var(--text-dim);font-size:.76rem}
   .llamada-audio-remoto{display:none}
+  #vista-chat.modo-llamada #chat-mensajes,
+  #vista-chat.modo-llamada #chat-escribiendo,
+  #vista-chat.modo-llamada #chat-pie{display:none!important}
   @media(max-width:640px){.llamada-panel{margin:8px 10px}.llamada-acciones button{flex-basis:100%}}
 
   /* ---------- RESPONSIVE ---------- */
@@ -1253,47 +1256,49 @@
 
       <!-- Pantalla de acceso: crear conversación nueva o ingresar a una existente -->
       <div class="auth-vista" id="vista-auth">
-        <div class="auth-tabs">
-          <button class="auth-tab-btn activo" id="tab-nueva" type="button">Nueva conversación</button>
-          <button class="auth-tab-btn" id="tab-ingresar" type="button">Ya tengo una cuenta</button>
+        <div id="soporte-eleccion">
+          <p class="auth-intro">¿Cómo querés comunicarte con soporte?</p>
+          <div class="llamada-acciones">
+            <button class="principal" id="soporte-elegir-chat" type="button">💬 Chat por mensajes</button>
+            <button class="principal" id="soporte-elegir-llamada" type="button">📞 Llamada en vivo</button>
+          </div>
+          <p class="editor-ayuda" style="margin-top:12px;">Para cualquiera de las dos opciones necesitás ingresar o crear tu usuario de soporte.</p>
         </div>
-
-        <form class="auth-form" id="form-registro">
-          <p class="auth-intro">Creá un usuario y una contraseña para tu conversación privada con soporte. La vas a necesitar si volvés a entrar desde otro dispositivo.</p>
-          <input type="text" id="reg-usuario" placeholder="Usuario" maxlength="30" autocomplete="off">
-          <input type="password" id="reg-clave" placeholder="Contraseña" maxlength="60">
-          <button type="submit">Iniciar nueva conversación</button>
-          <p class="auth-error" id="reg-error"></p>
-        </form>
-
-        <form class="auth-form oculto" id="form-login">
-          <p class="auth-intro">Ingresá con el usuario y la contraseña que creaste al abrir tu conversación.</p>
-          <input type="text" id="login-usuario" placeholder="Usuario" maxlength="30" autocomplete="off">
-          <input type="password" id="login-clave" placeholder="Contraseña" maxlength="60">
-          <button type="submit">Ingresar</button>
-          <p class="auth-error" id="login-error"></p>
-        </form>
+        <div id="soporte-auth-opciones" class="oculto">
+          <button class="chat-nueva-btn" id="soporte-volver-eleccion" type="button">← Cambiar forma de contacto</button>
+          <p class="auth-intro" id="soporte-modo-descripcion" style="margin:12px 0;">Ingresá o creá tu cuenta para continuar.</p>
+          <div class="auth-tabs">
+            <button class="auth-tab-btn activo" id="tab-nueva" type="button">Nueva conversación</button>
+            <button class="auth-tab-btn" id="tab-ingresar" type="button">Ya tengo una cuenta</button>
+          </div>
+          <form class="auth-form" id="form-registro">
+            <p class="auth-intro">Creá un usuario y una contraseña para tu conversación privada con soporte. La vas a necesitar si volvés a entrar desde otro dispositivo.</p>
+            <input type="text" id="reg-usuario" placeholder="Usuario" maxlength="30" autocomplete="off">
+            <input type="password" id="reg-clave" placeholder="Contraseña" maxlength="60">
+            <button type="submit">Continuar</button>
+            <p class="auth-error" id="reg-error"></p>
+          </form>
+          <form class="auth-form oculto" id="form-login">
+            <p class="auth-intro">Ingresá con el usuario y la contraseña que creaste al abrir tu conversación.</p>
+            <input type="text" id="login-usuario" placeholder="Usuario" maxlength="30" autocomplete="off">
+            <input type="password" id="login-clave" placeholder="Contraseña" maxlength="60">
+            <button type="submit">Ingresar</button>
+            <p class="auth-error" id="login-error"></p>
+          </form>
+        </div>
       </div>
 
       <!-- Vista del chat, una vez logueado -->
       <div class="oculto" id="vista-chat" style="display:flex; flex-direction:column; flex:1; min-height:0;">
-        <div class="llamada-panel oculto" id="cliente-llamada-entrante">
-          <span class="llamada-titulo">📞 Llamada entrante de soporte</span>
-          <span class="llamada-detalle">El administrador quiere hablar con vos.</span>
+        <div class="llamada-panel oculto" id="cliente-llamada-panel">
+          <span class="llamada-titulo">📞 Llamada con Servicio De TV</span>
+          <span class="llamada-detalle" id="cliente-llamada-estado">Preparando llamada…</span>
           <div class="llamada-acciones">
-            <button class="principal" id="cliente-llamada-contestar" type="button">Contestar</button>
-            <button class="peligro" id="cliente-llamada-rechazar" type="button">Rechazar</button>
-          </div>
-          <span class="llamada-estado" id="cliente-llamada-entrante-estado"></span>
-        </div>
-        <div class="llamada-panel oculto" id="cliente-llamada-activa">
-          <span class="llamada-titulo">☎ Llamada con Servicio De TV</span>
-          <span class="llamada-detalle" id="cliente-llamada-estado">Estás conectado con soporte.</span>
-          <div class="llamada-acciones">
-            <button id="cliente-llamada-mute" type="button">Silenciar micrófono</button>
+            <button id="cliente-llamada-mute" type="button" disabled>Silenciar micrófono</button>
             <button id="cliente-llamada-audio" type="button" class="oculto">Activar audio</button>
-            <button class="peligro" id="cliente-llamada-colgar" type="button">Colgar</button>
+            <button class="peligro" id="cliente-llamada-colgar" type="button">Cancelar / Colgar</button>
           </div>
+          <span class="llamada-estado" id="cliente-llamada-ayuda"></span>
         </div>
         <audio class="llamada-audio-remoto" id="cliente-audio-remoto" autoplay playsinline></audio>
         <div class="chat-mensajes" id="chat-mensajes"></div>
@@ -1357,12 +1362,15 @@
               <button id="admin-pausar">Pausar</button>
               <button id="admin-cerrar">Cerrar chat</button>
               <button id="admin-borrar">Borrar chat</button>
-              <button id="admin-llamar" type="button" disabled>📞 Llamar</button>
             </div>
             <div class="llamada-panel oculto" id="admin-llamada-panel">
-              <span class="llamada-titulo">☎ Llamada con el cliente</span>
-              <span class="llamada-detalle" id="admin-llamada-detalle">Preparando llamada…</span>
-              <div class="llamada-acciones">
+              <span class="llamada-titulo">☎ Solicitud de llamada del cliente</span>
+              <span class="llamada-detalle" id="admin-llamada-detalle">Esperando una solicitud…</span>
+              <div class="llamada-acciones" id="admin-llamada-solicitud-acciones">
+                <button class="principal" id="admin-llamada-aceptar" type="button">Atender llamada</button>
+                <button class="peligro" id="admin-llamada-rechazar" type="button">Rechazar</button>
+              </div>
+              <div class="llamada-acciones oculto" id="admin-llamada-controles">
                 <button id="admin-llamada-mute" type="button">Silenciar micrófono</button>
                 <button id="admin-llamada-audio" type="button" class="oculto">Activar audio</button>
                 <button id="admin-llamada-musica" type="button">🎵 Poner canción</button>
@@ -1415,6 +1423,20 @@
               <span class="editor-ayuda" id="editor-audio-pausa-estado">No hay música de pausa guardada.</span>
             </div>
             <button class="editor-borrar-seccion" id="editor-audio-pausa-quitar" type="button">Quitar música guardada</button>
+          </div>
+
+          <div class="editor-seccion">
+            <div class="editor-seccion-cabecera"><span>CONFIGURACIÓN DE CONEXIÓN DE LLAMADAS (TURN)</span></div>
+            <p class="editor-ayuda">TURN ayuda a conectar el audio cuando la red no permite una conexión directa. Creá una credencial TURN en Metered y pegá el nombre de tu aplicación y la API Key de esa credencial.</p>
+            <div class="editor-campo">
+              <label>Nombre de aplicación Metered (sin .metered.live)</label>
+              <input type="text" id="editor-turn-app" placeholder="miaplicacion">
+            </div>
+            <div class="editor-campo">
+              <label>API Key de credencial TURN</label>
+              <input type="password" id="editor-turn-apikey" autocomplete="off" placeholder="Pegá la API Key de Metered">
+            </div>
+            <p class="editor-ayuda">Podés dejar estos campos vacíos para intentar conexión directa STUN, pero algunas redes necesitan TURN para que se escuche el audio.</p>
           </div>
 
 <div class="editor-fila-2">
@@ -1581,6 +1603,37 @@
     // =====================================================================
 
     const REF_SITIO = db.ref('soporte_sitio/datos');
+
+    let turnAppNameActual = '';
+    let turnApiKeyActual = '';
+
+    function actualizarCredencialesTURN(datos){
+      let app = String(datos && datos.turnAppName || '').trim().toLowerCase();
+      app = app.replace(/^https?:\\/\\//, '').replace(/\\/+$/, '').replace(/\\.metered\\.live$/, '');
+      turnAppNameActual = /^[a-z0-9-]+$/.test(app) ? app : '';
+      turnApiKeyActual = String(datos && datos.turnApiKey || '').trim();
+    }
+
+    async function obtenerConfiguracionRTCPeer(){
+      const iceServers = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ];
+      if (turnAppNameActual && turnApiKeyActual) {
+        const endpoint = 'https://' + turnAppNameActual +
+          '.metered.live/api/v1/turn/credentials?apiKey=' + encodeURIComponent(turnApiKeyActual);
+        try {
+          const respuesta = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+          if (!respuesta.ok) throw new Error('Metered respondió HTTP ' + respuesta.status);
+          const servidores = await respuesta.json();
+          if (!Array.isArray(servidores) || !servidores.length) throw new Error('Metered no devolvió servidores ICE.');
+          iceServers.push(...servidores);
+        } catch (err) {
+          console.warn('No se pudo cargar TURN; se intentará conexión directa STUN:', err);
+        }
+      }
+      return { iceServers, iceCandidatePoolSize: 10, iceTransportPolicy: 'all' };
+    }
 
     // Música opcional que se reproduce una sola vez cuando el administrador pausa un chat.
     // El archivo MP3 se guarda como data URL en Firebase para que no dependa de un archivo externo.
@@ -1966,6 +2019,7 @@
       if (!datos) return;
 
       actualizarAudioPausa(datos);
+      actualizarCredencialesTURN(datos);
       mensajeInicialSoporteActual = normalizarMensajeInicialSoporte(datos.mensajeInicialSoporte);
       document.getElementById('footer-img').src = datos.footerImg || '';
       document.getElementById('footer-derechos').textContent = datos.footerDerechos || '';
@@ -3263,6 +3317,8 @@
       let editorYaCargado = false;
       const editorSoporteMensajeEl = document.getElementById('editor-soporte-mensaje');
       const editorSoporteBotonesEl = document.getElementById('editor-soporte-botones');
+      const editorTurnAppEl = document.getElementById('editor-turn-app');
+      const editorTurnApiKeyEl = document.getElementById('editor-turn-apikey');
       const editorAudioPausaInput = document.getElementById('editor-audio-pausa');
       const editorAudioPausaEstado = document.getElementById('editor-audio-pausa-estado');
       const editorAudioPausaQuitar = document.getElementById('editor-audio-pausa-quitar');
@@ -3460,6 +3516,8 @@
           document.getElementById('editor-footer-derechos').value = datosSitioActuales.footerDerechos || '';
           document.getElementById('editor-footer-contacto').value = datosSitioActuales.footerContacto || '';
           document.getElementById('editor-footer-img').value = datosSitioActuales.footerImg || '';
+          editorTurnAppEl.value = datosSitioActuales.turnAppName || '';
+          editorTurnApiKeyEl.value = datosSitioActuales.turnApiKey || '';
           cargarEditorBotonesSoporte(datosSitioActuales.mensajeInicialSoporte);
           audioPausaPendiente = null;
           quitarAudioPausaPendiente = false;
@@ -3545,6 +3603,8 @@
           audioPausaData: quitarAudioPausaPendiente
             ? ''
             : (audioPausaPendiente !== null ? audioPausaPendiente : (datosSitioActuales.audioPausaData || '')),
+          turnAppName: editorTurnAppEl.value.trim(),
+          turnApiKey: editorTurnApiKeyEl.value.trim(),
           secciones,
           paginas
         };
