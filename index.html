@@ -2706,10 +2706,13 @@
       const btnPausar = document.getElementById('admin-pausar');
       const btnCerrar = document.getElementById('admin-cerrar');
       const btnBorrar = document.getElementById('admin-borrar');
-      const btnLlamarAdmin = document.getElementById('admin-llamar');
       const panelLlamadaAdmin = document.getElementById('admin-llamada-panel');
       const detalleLlamadaAdmin = document.getElementById('admin-llamada-detalle');
       const estadoLlamadaAdmin = document.getElementById('admin-llamada-estado');
+      const accionesSolicitudAdmin = document.getElementById('admin-llamada-solicitud-acciones');
+      const controlesLlamadaAdmin = document.getElementById('admin-llamada-controles');
+      const botonAceptarAdmin = document.getElementById('admin-llamada-aceptar');
+      const botonRechazarAdmin = document.getElementById('admin-llamada-rechazar');
       const botonMuteAdmin = document.getElementById('admin-llamada-mute');
       const botonAudioAdmin = document.getElementById('admin-llamada-audio');
       const botonMusicaAdmin = document.getElementById('admin-llamada-musica');
@@ -2718,13 +2721,13 @@
 
       let adminCallRef = null;
       let adminCallCandidatesRef = null;
+      let adminSolicitudRef = null;
       let adminPcLlamada = null;
       let adminStreamLocal = null;
       let adminStreamRemoto = null;
       let adminMusicaAudio = null;
       let adminMusicaContexto = null;
       let adminMusicaTrack = null;
-      let adminMusicaDestino = null;
       let adminCallChatId = null;
       let adminRespuestaAplicada = false;
       let adminCandidatosPendientes = [];
@@ -2742,10 +2745,16 @@
       let timeoutEscribiendoAdmin = null;
       const adminEscribiendoEl = document.getElementById('admin-escribiendo');
 
-      function actualizarUIllamadaAdmin(visible){
-        panelLlamadaAdmin.classList.toggle('oculto', !visible);
-        btnLlamarAdmin.disabled = !!adminPcLlamada || !chatSeleccionado;
-        btnLlamarAdmin.textContent = adminPcLlamada ? '📞 Llamada en curso' : '📞 Llamar';
+      function actualizarUIllamadaAdmin(estado){
+        const solicitando = estado === 'requested';
+        const activa = estado === 'connecting' || estado === 'active';
+        panelLlamadaAdmin.classList.toggle('oculto', !solicitando && !activa);
+        accionesSolicitudAdmin.classList.toggle('oculto', !solicitando);
+        controlesLlamadaAdmin.classList.toggle('oculto', !activa);
+        botonMuteAdmin.disabled = !activa;
+        botonMusicaAdmin.disabled = !activa;
+        if (solicitando) detalleLlamadaAdmin.textContent = 'El cliente solicitó una llamada. Podés atenderla o rechazarla.';
+        if (activa) detalleLlamadaAdmin.textContent = 'Llamada con el cliente.';
       }
 
       async function agregarCandidatoAdmin(datos){
@@ -2769,25 +2778,13 @@
         if (adminCallRef) adminCallRef.off('value');
         if (adminCallCandidatesRef) adminCallCandidatesRef.off();
         adminCallCandidatesRef = null;
-        if (adminPcLlamada) {
-          adminPcLlamada.ontrack = null;
-          adminPcLlamada.onicecandidate = null;
-          adminPcLlamada.close();
-        }
+        if (adminPcLlamada) { adminPcLlamada.ontrack = null; adminPcLlamada.onicecandidate = null; adminPcLlamada.close(); }
         adminPcLlamada = null;
         if (adminStreamLocal) adminStreamLocal.getTracks().forEach(track => track.stop());
         adminStreamLocal = null;
-        if (adminMusicaAudio) {
-          adminMusicaAudio.pause();
-          adminMusicaAudio.currentTime = 0;
-          adminMusicaAudio = null;
-        }
-        if (adminMusicaContexto) {
-          adminMusicaContexto.close().catch(() => {});
-          adminMusicaContexto = null;
-        }
+        if (adminMusicaAudio) { adminMusicaAudio.pause(); adminMusicaAudio.currentTime = 0; adminMusicaAudio = null; }
+        if (adminMusicaContexto) { adminMusicaContexto.close().catch(() => {}); adminMusicaContexto = null; }
         adminMusicaTrack = null;
-        adminMusicaDestino = null;
         if (audioRemotoAdmin) audioRemotoAdmin.srcObject = null;
         adminStreamRemoto = null;
         adminRespuestaAplicada = false;
@@ -2798,72 +2795,67 @@
         adminLlamadaActiva = false;
         botonMuteAdmin.textContent = 'Silenciar micrófono';
         botonMusicaAdmin.textContent = '🎵 Poner canción';
-        actualizarUIllamadaAdmin(false);
+        botonAudioAdmin.classList.add('oculto');
         if (mensaje) estadoLlamadaAdmin.textContent = mensaje;
         if (reanudarMusicaPausa && btnPausar.classList.contains('pausar-activo')) reproducirMusicaPausa();
         adminCallRef = null;
         adminCallChatId = null;
+        actualizarUIllamadaAdmin('none');
       }
 
-      async function iniciarLlamadaAdmin(){
-        if (!chatSeleccionado) {
-          estadoLlamadaAdmin.textContent = 'Primero seleccioná una conversación.';
-          return;
-        }
-        if (adminPcLlamada) return;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) {
-          estadoLlamadaAdmin.textContent = 'Este navegador no permite llamadas. Usá una versión actualizada y HTTPS.';
-          return;
-        }
-
-        const idCliente = chatSeleccionado;
-        btnLlamarAdmin.disabled = true;
+      async function aceptarSolicitudLlamadaAdmin(){
+        const id = adminCallChatId || chatSeleccionado;
+        if (!id || adminPcLlamada) return;
+        adminCallChatId = id;
+        adminCallRef = db.ref('soporte_llamadas/' + id);
+        botonAceptarAdmin.disabled = true;
         estadoLlamadaAdmin.textContent = 'Solicitando permiso para usar el micrófono…';
 
         try {
+          const solicitud = (await adminCallRef.once('value')).val();
+          if (!solicitud || solicitud.status !== 'requested') throw new Error('La solicitud ya no está disponible.');
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) {
+            throw new Error('Este navegador no permite llamadas. Usá la web con HTTPS y un navegador actualizado.');
+          }
           adminStreamLocal = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: false
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false
           });
-
-          adminPcLlamada = new RTCPeerConnection(CONFIG_LLAMADA_RTC);
+          const configuracion = await obtenerConfiguracionRTCPeer();
+          adminPcLlamada = new RTCPeerConnection(configuracion);
           adminStreamRemoto = new MediaStream();
           audioRemotoAdmin.srcObject = adminStreamRemoto;
-          adminStreamLocal.getAudioTracks().forEach(track => adminPcLlamada.addTrack(track, adminStreamLocal));
 
+          // El administrador no reproduce su propio micrófono: el reproductor local recibe solo pistas remotas.
+          adminStreamLocal.getAudioTracks().forEach(track => adminPcLlamada.addTrack(track, adminStreamLocal));
           adminPcLlamada.ontrack = event => {
-            const tracks = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
-            tracks.forEach(track => {
-              if (!adminStreamRemoto.getTracks().some(existing => existing.id === track.id)) adminStreamRemoto.addTrack(track);
-            });
+            const pistas = event.streams && event.streams.length ? event.streams[0].getTracks() : [event.track];
+            pistas.forEach(pista => { if (!adminStreamRemoto.getTracks().some(existing => existing.id === pista.id)) adminStreamRemoto.addTrack(pista); });
             audioRemotoAdmin.play().then(() => botonAudioAdmin.classList.add('oculto')).catch(err => {
               botonAudioAdmin.classList.remove('oculto');
-              estadoLlamadaAdmin.textContent = 'El navegador bloqueó el audio. Tocá “Activar audio”.';
-              console.warn('Audio remoto del administrador bloqueado:', err);
+              estadoLlamadaAdmin.textContent = 'El audio fue bloqueado. Tocá “Activar audio”.';
+              console.warn('Audio remoto bloqueado en admin:', err);
             });
           };
-
           adminPcLlamada.onicecandidate = event => {
             if (event.candidate && adminCallRef) adminCallRef.child('adminCandidates').push(event.candidate.toJSON());
           };
           adminPcLlamada.onconnectionstatechange = () => {
-            const estado = adminPcLlamada ? adminPcLlamada.connectionState : '';
+            if (!adminPcLlamada) return;
+            const estado = adminPcLlamada.connectionState;
             if (estado === 'connected') {
               adminLlamadaActiva = true;
-              detalleLlamadaAdmin.textContent = 'Conectado con el cliente.';
-              estadoLlamadaAdmin.textContent = 'Llamada en vivo.';
-              actualizarUIllamadaAdmin(true);
-            } else if (estado === 'connecting') {
-              detalleLlamadaAdmin.textContent = 'Conectando con el cliente…';
+              estadoLlamadaAdmin.textContent = 'Llamada conectada. Escuchás al cliente y el cliente escucha tu micrófono.';
+              actualizarUIllamadaAdmin('active');
             } else if (estado === 'failed') {
-              estadoLlamadaAdmin.textContent = 'No se pudo establecer la conexión. Puede hacer falta un servidor TURN.';
-              if (adminCallRef) adminCallRef.update({ status: 'failed', endedBy: 'admin' }).catch(() => {});
-              limpiarLlamadaAdmin('Falló la conexión.', false);
+              estadoLlamadaAdmin.textContent = 'No se pudo conectar el audio. Verificá TURN y los permisos de micrófono.';
+              if (adminCallRef) adminCallRef.update({ status: 'failed', error: 'Falló la conexión ICE/WebRTC.' }).catch(() => {});
+              limpiarLlamadaAdmin('Falló la conexión de audio.', false);
             } else if (estado === 'disconnected') {
-              estadoLlamadaAdmin.textContent = 'Conexión interrumpida; intentando recuperar…';
+              estadoLlamadaAdmin.textContent = 'Se perdió la conexión. Intentando recuperar…';
             }
           };
 
+          // La canción se envía como pista independiente, separada del micrófono.
           if (audioPausaDataUrlActual && (window.AudioContext || window.webkitAudioContext)) {
             adminMusicaAudio = new Audio(audioPausaDataUrlActual);
             adminMusicaAudio.loop = true;
@@ -2871,103 +2863,105 @@
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             adminMusicaContexto = new AudioContextClass();
             const fuente = adminMusicaContexto.createMediaElementSource(adminMusicaAudio);
-            adminMusicaDestino = adminMusicaContexto.createMediaStreamDestination();
-            fuente.connect(adminMusicaDestino);
+            const destino = adminMusicaContexto.createMediaStreamDestination();
+            fuente.connect(destino);
             fuente.connect(adminMusicaContexto.destination);
-            adminMusicaTrack = adminMusicaDestino.stream.getAudioTracks()[0];
-            if (adminMusicaTrack) {
-              adminMusicaTrack.enabled = false;
-              adminPcLlamada.addTrack(adminMusicaTrack, adminMusicaDestino.stream);
-            }
+            adminMusicaTrack = destino.stream.getAudioTracks()[0];
+            if (adminMusicaTrack) { adminMusicaTrack.enabled = false; adminPcLlamada.addTrack(adminMusicaTrack, destino.stream); }
           }
-
-          adminCallChatId = idCliente;
-          adminCallRef = db.ref('soporte_llamadas/' + idCliente);
-          const llamadaExistente = (await adminCallRef.once('value')).val();
-          if (llamadaExistente && ['calling', 'active'].includes(llamadaExistente.status)) {
-            throw new Error('Esta conversación ya tiene una llamada en curso.');
-          }
-
-          await adminCallRef.set({
-            status: 'calling',
-            caller: 'admin',
-            startedAt: firebase.database.ServerValue.TIMESTAMP
-          });
 
           adminCallCandidatesRef = adminCallRef.child('clientCandidates');
-          adminCallCandidatesRef.on('child_added', candidateSnap => {
-            const datos = candidateSnap.val();
-            if (datos) agregarCandidatoAdmin(datos);
-          });
-
+          adminCallCandidatesRef.off();
+          adminCallCandidatesRef.on('child_added', snap => { const datos = snap.val(); if (datos) agregarCandidatoAdmin(datos); });
           adminRespuestaAplicada = false;
           adminDescripcionRemotaLista = false;
           adminCandidatosPendientes = [];
-
+          adminCallRef.off('value');
           adminCallRef.on('value', async snap => {
             const llamada = snap.val();
-            if (!llamada) return;
-
-            if (llamada.answer && !adminRespuestaAplicada && adminPcLlamada) {
+            if (!llamada || !adminPcLlamada) return;
+            if (llamada.answer && !adminRespuestaAplicada) {
               adminRespuestaAplicada = true;
               try {
                 await adminPcLlamada.setRemoteDescription(new RTCSessionDescription(llamada.answer));
                 adminDescripcionRemotaLista = true;
                 await vaciarCandidatosClienteAdmin();
-                adminLlamadaActiva = true;
-                detalleLlamadaAdmin.textContent = 'El cliente atendió. Conectando audio…';
-                actualizarUIllamadaAdmin(true);
               } catch (err) {
-                console.error('No se pudo aplicar la respuesta WebRTC:', err);
-                estadoLlamadaAdmin.textContent = 'No se pudo completar la llamada.';
+                console.error('No se pudo aplicar la respuesta del cliente:', err);
+                estadoLlamadaAdmin.textContent = 'No se pudo completar la negociación de audio.';
               }
             }
-
-            if (llamada.status === 'active' && adminPcLlamada) {
-              detalleLlamadaAdmin.textContent = 'El cliente atendió. Conectando audio…';
-              actualizarUIllamadaAdmin(true);
-            } else if (llamada.status === 'rejected') {
-              limpiarLlamadaAdmin('El cliente rechazó la llamada.', false);
-            } else if (llamada.status === 'ended') {
-              limpiarLlamadaAdmin(llamada.endedBy === 'cliente' ? 'El cliente colgó.' : 'Llamada finalizada.', false);
-            } else if (llamada.status === 'failed') {
-              limpiarLlamadaAdmin('No se pudo conectar la llamada.', false);
+            if (['ended','rejected','failed'].includes(llamada.status)) {
+              const mensaje = llamada.status === 'rejected' ? 'El cliente canceló la llamada.' :
+                llamada.status === 'failed' ? 'La llamada no pudo conectarse.' : 'El cliente colgó.';
+              limpiarLlamadaAdmin(mensaje, false);
             }
           });
 
           const oferta = await adminPcLlamada.createOffer();
           await adminPcLlamada.setLocalDescription(oferta);
           await adminCallRef.update({
-            offer: { type: adminPcLlamada.localDescription.type, sdp: adminPcLlamada.localDescription.sdp }
+            offer: { type: adminPcLlamada.localDescription.type, sdp: adminPcLlamada.localDescription.sdp },
+            status: 'accepted',
+            acceptedAt: firebase.database.ServerValue.TIMESTAMP
           });
-
-          panelLlamadaAdmin.classList.remove('oculto');
-          detalleLlamadaAdmin.textContent = 'Llamando al cliente… Esperando que atienda.';
-          estadoLlamadaAdmin.textContent = 'Permití el uso del micrófono si el navegador lo solicita.';
-          actualizarUIllamadaAdmin(true);
-          if (btnPausar.classList.contains('pausar-activo')) detenerMusicaPausa();
+          actualizarUIllamadaAdmin('connecting');
+          detalleLlamadaAdmin.textContent = 'Llamada aceptada. Conectando audio…';
+          estadoLlamadaAdmin.textContent = turnAppNameActual && turnApiKeyActual
+            ? 'Usando STUN + TURN para conectar.'
+            : 'Intentando conexión directa. Si no hay audio, configurá TURN en Editar sitio.';
         } catch (err) {
-          console.error('Error al iniciar llamada:', err);
-          const mensaje = err && err.message ? err.message : 'No se pudo iniciar la llamada.';
+          console.error('Error al atender la llamada:', err);
+          const mensaje = err && err.message ? err.message : 'No se pudo atender la llamada.';
           estadoLlamadaAdmin.textContent = mensaje;
           if (adminCallRef) adminCallRef.update({ status: 'failed', error: mensaje }).catch(() => {});
           limpiarLlamadaAdmin(mensaje, false);
-          btnLlamarAdmin.disabled = false;
-        }
+        } finally { botonAceptarAdmin.disabled = false; }
+      }
+
+      function rechazarSolicitudLlamadaAdmin(){
+        const id = adminCallChatId || chatSeleccionado;
+        if (id) db.ref('soporte_llamadas/' + id).update({
+          status: 'rejected', endedBy: 'admin', endedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(err => console.warn('No se pudo rechazar la solicitud:', err));
+        limpiarLlamadaAdmin('Solicitud rechazada.', false);
       }
 
       function colgarLlamadaAdmin(){
-        if (adminCallRef) {
-          adminCallRef.update({
-            status: 'ended',
-            endedBy: 'admin',
-            endedAt: firebase.database.ServerValue.TIMESTAMP
-          }).catch(err => console.warn('No se pudo avisar al cliente que se colgó:', err));
-        }
-        limpiarLlamadaAdmin('Llamada finalizada por el administrador.');
+        if (adminCallRef) adminCallRef.update({
+          status: 'ended', endedBy: 'admin', endedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(err => console.warn('No se pudo finalizar la llamada:', err));
+        limpiarLlamadaAdmin('Llamada finalizada por soporte.');
       }
 
-      btnLlamarAdmin.addEventListener('click', iniciarLlamadaAdmin);
+      function iniciarMonitorSolicitudesLlamadaAdmin(){
+        if (adminSolicitudRef) return;
+        adminSolicitudRef = db.ref('soporte_llamadas');
+        adminSolicitudRef.on('value', snap => {
+          const todas = snap.val() || {};
+          const solicitudes = Object.entries(todas)
+            .filter(([, llamada]) => llamada && llamada.status === 'requested')
+            .sort((a,b) => (a[1].requestedAt || 0) - (b[1].requestedAt || 0));
+          if (adminPcLlamada) return;
+          if (solicitudes.length) {
+            const [id] = solicitudes[0];
+            adminCallChatId = id;
+            if (chatSeleccionado !== id) seleccionarChat(id);
+            adminCallRef = db.ref('soporte_llamadas/' + id);
+            panelLlamadaAdmin.classList.remove('oculto');
+            accionesSolicitudAdmin.classList.remove('oculto');
+            controlesLlamadaAdmin.classList.add('oculto');
+            detalleLlamadaAdmin.textContent = 'El cliente solicitó una llamada. Podés atenderla o rechazarla.';
+            estadoLlamadaAdmin.textContent = 'Solicitud recibida.';
+            document.getElementById('admin-tab-soporte').click();
+          } else if (!adminPcLlamada && !adminCallChatId) {
+            actualizarUIllamadaAdmin('none');
+          }
+        }, err => console.error('No se pudieron recibir solicitudes de llamada:', err));
+      }
+
+      botonAceptarAdmin.addEventListener('click', aceptarSolicitudLlamadaAdmin);
+      botonRechazarAdmin.addEventListener('click', rechazarSolicitudLlamadaAdmin);
       botonColgarAdmin.addEventListener('click', colgarLlamadaAdmin);
       botonAudioAdmin.addEventListener('click', () => {
         audioRemotoAdmin.play().then(() => botonAudioAdmin.classList.add('oculto')).catch(() => {
@@ -3171,6 +3165,7 @@
         adminVistaLogin.classList.add('oculto');
         document.getElementById('admin-shell').classList.remove('oculto');
         iniciarAvisosAdmin();
+        iniciarMonitorSolicitudesLlamadaAdmin();
         if (!listaCargada) { cargarLista(); listaCargada = true; }
       }
 
@@ -3193,8 +3188,11 @@
 
       function seleccionarChat(id){
         if (adminPcLlamada && adminCallChatId && adminCallChatId !== id) colgarLlamadaAdmin();
+        if (!adminPcLlamada && adminCallChatId && adminCallChatId !== id) {
+          adminCallChatId = null;
+          actualizarUIllamadaAdmin('none');
+        }
         chatSeleccionado = id;
-        btnLlamarAdmin.disabled = !id || !!adminPcLlamada;
         adminMensajesEl.innerHTML = '';
         adminSincronizado = false;
         adminEscribiendoEl.classList.add('oculto');
@@ -3295,7 +3293,10 @@
         if (!confirm('¿Borrar esta conversación? El cliente va a tener que crear una cuenta nueva para volver a escribir.')) return;
 
         const idABorrar = chatSeleccionado;
-        if (adminCallChatId === idABorrar && adminPcLlamada) colgarLlamadaAdmin();
+        if (adminCallChatId === idABorrar) {
+          if (adminPcLlamada) colgarLlamadaAdmin();
+          else rechazarSolicitudLlamadaAdmin();
+        }
         db.ref('soporte_chats/' + idABorrar + '/usuario').once('value', s => {
           const usuario = s.val();
           db.ref('soporte_chats/' + idABorrar).remove();
