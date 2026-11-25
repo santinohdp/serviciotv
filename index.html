@@ -1291,6 +1291,7 @@
           <span class="llamada-detalle" id="cliente-llamada-estado">Estás conectado con soporte.</span>
           <div class="llamada-acciones">
             <button id="cliente-llamada-mute" type="button">Silenciar micrófono</button>
+            <button id="cliente-llamada-audio" type="button" class="oculto">Activar audio</button>
             <button class="peligro" id="cliente-llamada-colgar" type="button">Colgar</button>
           </div>
         </div>
@@ -1363,6 +1364,7 @@
               <span class="llamada-detalle" id="admin-llamada-detalle">Preparando llamada…</span>
               <div class="llamada-acciones">
                 <button id="admin-llamada-mute" type="button">Silenciar micrófono</button>
+                <button id="admin-llamada-audio" type="button" class="oculto">Activar audio</button>
                 <button id="admin-llamada-musica" type="button">🎵 Poner canción</button>
                 <button class="peligro" id="admin-llamada-colgar" type="button">Colgar</button>
               </div>
@@ -2156,6 +2158,7 @@
     const botonContestarCliente = document.getElementById('cliente-llamada-contestar');
     const botonRechazarCliente = document.getElementById('cliente-llamada-rechazar');
     const botonMuteCliente = document.getElementById('cliente-llamada-mute');
+    const botonAudioCliente = document.getElementById('cliente-llamada-audio');
     const botonColgarCliente = document.getElementById('cliente-llamada-colgar');
 
     function actualizarUIllamadaCliente(estado){
@@ -2242,7 +2245,11 @@
               streamRemotoCliente.addTrack(track);
             }
           });
-          audioRemotoCliente.play().catch(err => console.warn('El navegador bloqueó el audio remoto del cliente:', err));
+          audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(err => {
+            botonAudioCliente.classList.remove('oculto');
+            estadoLlamadaCliente.textContent = 'El navegador bloqueó el audio. Tocá “Activar audio”.';
+            console.warn('El navegador bloqueó el audio remoto del cliente:', err);
+          });
         };
 
         pcLlamadaCliente.onicecandidate = event => {
@@ -2344,6 +2351,11 @@
     botonContestarCliente.addEventListener('click', contestarLlamadaCliente);
     botonRechazarCliente.addEventListener('click', rechazarLlamadaCliente);
     botonColgarCliente.addEventListener('click', colgarLlamadaCliente);
+    botonAudioCliente.addEventListener('click', () => {
+      audioRemotoCliente.play().then(() => botonAudioCliente.classList.add('oculto')).catch(() => {
+        estadoLlamadaCliente.textContent = 'No se pudo activar el audio remoto.';
+      });
+    });
     botonMuteCliente.addEventListener('click', () => {
       if (!streamLocalCliente) return;
       clienteMicrofonoSilenciado = !clienteMicrofonoSilenciado;
@@ -2651,6 +2663,7 @@
       const detalleLlamadaAdmin = document.getElementById('admin-llamada-detalle');
       const estadoLlamadaAdmin = document.getElementById('admin-llamada-estado');
       const botonMuteAdmin = document.getElementById('admin-llamada-mute');
+      const botonAudioAdmin = document.getElementById('admin-llamada-audio');
       const botonMusicaAdmin = document.getElementById('admin-llamada-musica');
       const botonColgarAdmin = document.getElementById('admin-llamada-colgar');
       const audioRemotoAdmin = document.getElementById('admin-audio-remoto');
@@ -2775,8 +2788,9 @@
             tracks.forEach(track => {
               if (!adminStreamRemoto.getTracks().some(existing => existing.id === track.id)) adminStreamRemoto.addTrack(track);
             });
-            audioRemotoAdmin.play().catch(err => {
-              estadoLlamadaAdmin.textContent = 'El navegador bloqueó el audio remoto. Hacé clic en el panel de llamada.';
+            audioRemotoAdmin.play().then(() => botonAudioAdmin.classList.add('oculto')).catch(err => {
+              botonAudioAdmin.classList.remove('oculto');
+              estadoLlamadaAdmin.textContent = 'El navegador bloqueó el audio. Tocá “Activar audio”.';
               console.warn('Audio remoto del administrador bloqueado:', err);
             });
           };
@@ -2811,6 +2825,7 @@
             const fuente = adminMusicaContexto.createMediaElementSource(adminMusicaAudio);
             adminMusicaDestino = adminMusicaContexto.createMediaStreamDestination();
             fuente.connect(adminMusicaDestino);
+            fuente.connect(adminMusicaContexto.destination);
             adminMusicaTrack = adminMusicaDestino.stream.getAudioTracks()[0];
             if (adminMusicaTrack) {
               adminMusicaTrack.enabled = false;
@@ -2906,6 +2921,11 @@
 
       btnLlamarAdmin.addEventListener('click', iniciarLlamadaAdmin);
       botonColgarAdmin.addEventListener('click', colgarLlamadaAdmin);
+      botonAudioAdmin.addEventListener('click', () => {
+        audioRemotoAdmin.play().then(() => botonAudioAdmin.classList.add('oculto')).catch(() => {
+          estadoLlamadaAdmin.textContent = 'No se pudo activar el audio remoto.';
+        });
+      });
       botonMuteAdmin.addEventListener('click', () => {
         if (!adminStreamLocal) return;
         adminMicrofonoSilenciado = !adminMicrofonoSilenciado;
@@ -3124,6 +3144,7 @@
       }
 
       function seleccionarChat(id){
+        if (adminPcLlamada && adminCallChatId && adminCallChatId !== id) colgarLlamadaAdmin();
         chatSeleccionado = id;
         btnLlamarAdmin.disabled = !id || !!adminPcLlamada;
         adminMensajesEl.innerHTML = '';
